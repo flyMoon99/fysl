@@ -1,0 +1,508 @@
+const { Member, MemberLoginLog } = require('../models');
+const { generateToken, hashPassword, comparePassword } = require('../middleware/auth');
+const { userStatus } = require('../../../shared/config/auth');
+
+// 会员登录
+const memberLogin = async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    // 验证输入
+    if (!username || !password) {
+      return res.status(400).json({
+        error: '用户名和密码不能为空',
+        code: 'INVALID_INPUT'
+      });
+    }
+
+    // 查找会员
+    const member = await Member.findByUsername(username);
+    if (!member) {
+      return res.status(401).json({
+        error: '用户名或密码错误',
+        code: 'AUTH_FAILED'
+      });
+    }
+
+    // 验证密码
+    const isValidPassword = await comparePassword(password, member.password);
+    if (!isValidPassword) {
+      return res.status(401).json({
+        error: '用户名或密码错误',
+        code: 'AUTH_FAILED'
+      });
+    }
+
+    // 检查账户状态
+    if (!member.isActive()) {
+      return res.status(401).json({
+        error: '账户已被禁用',
+        code: 'ACCOUNT_DISABLED'
+      });
+    }
+
+    // 更新最后登录时间
+    await member.updateLastLogin();
+
+    // 记录登录日志
+    await MemberLoginLog.createLoginLog(member.id, {
+      operationUrl: req.body.operationUrl || '/member/login',
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent')
+    });
+
+    // 生成JWT Token
+    const token = generateToken({
+      id: member.id,
+      username: member.username,
+      role: 'member'
+    });
+
+    res.json({
+      message: '登录成功',
+      data: {
+        token,
+        member: {
+          id: member.id,
+          username: member.username,
+          status: member.status,
+          last_login_at: member.last_login_at
+        }
+      }
+    });
+  } catch (error) {
+    console.error('会员登录错误:', error);
+    res.status(500).json({
+      error: '登录过程中发生错误',
+      code: 'LOGIN_ERROR'
+    });
+  }
+};
+
+// 会员注册
+const memberRegister = async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    // 验证输入
+    if (!username || !password) {
+      return res.status(400).json({
+        error: '用户名和密码不能为空',
+        code: 'INVALID_INPUT'
+      });
+    }
+
+    // 检查用户名是否已存在
+    const existingMember = await Member.findByUsername(username);
+    if (existingMember) {
+      return res.status(400).json({
+        error: '用户名已存在',
+        code: 'USERNAME_EXISTS'
+      });
+    }
+
+    // 加密密码
+    const hashedPassword = await hashPassword(password);
+
+    // 创建会员
+    const member = await Member.create({
+      username,
+      password: hashedPassword,
+      status: 'active'
+    });
+
+    res.status(201).json({
+      message: '注册成功',
+      data: {
+        member: {
+          id: member.id,
+          username: member.username,
+          status: member.status,
+          created_at: member.created_at
+        }
+      }
+    });
+  } catch (error) {
+    console.error('会员注册错误:', error);
+    res.status(500).json({
+      error: '注册失败',
+      code: 'REGISTER_ERROR'
+    });
+  }
+};
+
+// 获取会员列表（管理员功能）
+const getMemberList = async (req, res) => {
+  try {
+    const { page = 1, limit = 10, status, username, startDate, endDate } = req.query;
+    const offset = (page - 1) * limit;
+
+    // 构建查询条件
+    const where = {};
+    if (status) where.status = status;
+    if (username) {
+      where.username = {
+        [require('sequelize').Op.like]: `%${username}%`
+      };
+    }
+    if (startDate && endDate) {
+      where.created_at = {
+        [require('sequelize').Op.between]: [new Date(startDate), new Date(endDate)]
+      };
+    }
+
+    const { count, rows } = await Member.findAndCountAll({
+      where,
+      attributes: ['id', 'username', 'status', 'last_login_at', 'created_at', 'updated_at'],
+      order: [['created_at', 'DESC']],
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+
+    res.json({
+      message: '获取会员列表成功',
+      data: {
+        members: rows,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: count,
+          totalPages: Math.ceil(count / limit)
+        }
+      }
+    });
+  } catch (error) {
+    console.error('获取会员列表错误:', error);
+    res.status(500).json({
+      error: '获取会员列表失败',
+      code: 'GET_MEMBER_LIST_ERROR'
+    });
+  }
+};
+
+// 创建会员（管理员功能）
+const createMember = async (req, res) => {
+  try {
+    const { username, password, status = 'active' } = req.body;
+
+    // 验证输入
+    if (!username || !password) {
+      return res.status(400).json({
+        error: '用户名和密码不能为空',
+        code: 'INVALID_INPUT'
+      });
+    }
+
+    // 检查用户名是否已存在
+    const existingMember = await Member.findByUsername(username);
+    if (existingMember) {
+      return res.status(400).json({
+        error: '用户名已存在',
+        code: 'USERNAME_EXISTS'
+      });
+    }
+
+    // 加密密码
+    const hashedPassword = await hashPassword(password);
+
+    // 创建会员
+    const member = await Member.create({
+      username,
+      password: hashedPassword,
+      status
+    });
+
+    res.status(201).json({
+      message: '会员创建成功',
+      data: {
+        member: {
+          id: member.id,
+          username: member.username,
+          status: member.status,
+          created_at: member.created_at
+        }
+      }
+    });
+  } catch (error) {
+    console.error('创建会员错误:', error);
+    res.status(500).json({
+      error: '创建会员失败',
+      code: 'CREATE_MEMBER_ERROR'
+    });
+  }
+};
+
+// 更新会员（管理员功能）
+const updateMember = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { username, password, status } = req.body;
+
+    // 查找会员
+    const member = await Member.findByPk(id);
+    if (!member) {
+      return res.status(404).json({
+        error: '会员不存在',
+        code: 'MEMBER_NOT_FOUND'
+      });
+    }
+
+    // 检查用户名是否已被其他会员使用
+    if (username && username !== member.username) {
+      const existingMember = await Member.findByUsername(username);
+      if (existingMember) {
+        return res.status(400).json({
+          error: '用户名已存在',
+          code: 'USERNAME_EXISTS'
+        });
+      }
+    }
+
+    // 更新字段
+    const updateData = {};
+    if (username) updateData.username = username;
+    if (password) updateData.password = await hashPassword(password);
+    if (status) updateData.status = status;
+
+    await member.update(updateData);
+
+    res.json({
+      message: '会员更新成功',
+      data: {
+        member: {
+          id: member.id,
+          username: member.username,
+          status: member.status,
+          updated_at: member.updated_at
+        }
+      }
+    });
+  } catch (error) {
+    console.error('更新会员错误:', error);
+    res.status(500).json({
+      error: '更新会员失败',
+      code: 'UPDATE_MEMBER_ERROR'
+    });
+  }
+};
+
+// 删除会员（管理员功能）
+const deleteMember = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // 查找会员
+    const member = await Member.findByPk(id);
+    if (!member) {
+      return res.status(404).json({
+        error: '会员不存在',
+        code: 'MEMBER_NOT_FOUND'
+      });
+    }
+
+    await member.destroy();
+
+    res.json({
+      message: '会员删除成功'
+    });
+  } catch (error) {
+    console.error('删除会员错误:', error);
+    res.status(500).json({
+      error: '删除会员失败',
+      code: 'DELETE_MEMBER_ERROR'
+    });
+  }
+};
+
+// 获取会员详情
+const getMemberDetail = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const member = await Member.findByPk(id, {
+      attributes: ['id', 'username', 'status', 'last_login_at', 'created_at', 'updated_at']
+    });
+
+    if (!member) {
+      return res.status(404).json({
+        error: '会员不存在',
+        code: 'MEMBER_NOT_FOUND'
+      });
+    }
+
+    res.json({
+      message: '获取会员详情成功',
+      data: { member }
+    });
+  } catch (error) {
+    console.error('获取会员详情错误:', error);
+    res.status(500).json({
+      error: '获取会员详情失败',
+      code: 'GET_MEMBER_DETAIL_ERROR'
+    });
+  }
+};
+
+// 获取当前会员信息
+const getCurrentMember = async (req, res) => {
+  try {
+    const member = req.member;
+    
+    res.json({
+      message: '获取当前会员信息成功',
+      data: {
+        member: {
+          id: member.id,
+          username: member.username,
+          status: member.status,
+          last_login_at: member.last_login_at,
+          created_at: member.created_at
+        }
+      }
+    });
+  } catch (error) {
+    console.error('获取当前会员信息错误:', error);
+    res.status(500).json({
+      error: '获取当前会员信息失败',
+      code: 'GET_CURRENT_MEMBER_ERROR'
+    });
+  }
+};
+
+// 更新个人信息
+const updateProfile = async (req, res) => {
+  try {
+    const { username } = req.body;
+    const member = req.member;
+
+    // 验证输入
+    if (!username) {
+      return res.status(400).json({
+        error: '用户名不能为空',
+        code: 'INVALID_INPUT'
+      });
+    }
+
+    // 检查用户名是否已被其他会员使用
+    if (username !== member.username) {
+      const existingMember = await Member.findByUsername(username);
+      if (existingMember) {
+        return res.status(400).json({
+          error: '用户名已存在',
+          code: 'USERNAME_EXISTS'
+        });
+      }
+    }
+
+    // 更新用户信息
+    await member.update({ username });
+
+    res.json({
+      message: '个人信息更新成功',
+      data: {
+        member: {
+          id: member.id,
+          username: member.username,
+          status: member.status,
+          updated_at: member.updated_at
+        }
+      }
+    });
+  } catch (error) {
+    console.error('更新个人信息错误:', error);
+    res.status(500).json({
+      error: '更新个人信息失败',
+      code: 'UPDATE_PROFILE_ERROR'
+    });
+  }
+};
+
+// 修改密码
+const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const member = req.member;
+
+    // 验证输入
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        error: '当前密码和新密码不能为空',
+        code: 'INVALID_INPUT'
+      });
+    }
+
+    // 验证当前密码
+    const isValidPassword = await comparePassword(currentPassword, member.password);
+    if (!isValidPassword) {
+      return res.status(400).json({
+        error: '当前密码错误',
+        code: 'INVALID_CURRENT_PASSWORD'
+      });
+    }
+
+    // 加密新密码
+    const hashedPassword = await hashPassword(newPassword);
+
+    // 更新密码
+    await member.update({ password: hashedPassword });
+
+    res.json({
+      message: '密码修改成功'
+    });
+  } catch (error) {
+    console.error('修改密码错误:', error);
+    res.status(500).json({
+      error: '修改密码失败',
+      code: 'CHANGE_PASSWORD_ERROR'
+    });
+  }
+};
+
+// 获取登录历史
+const getLoginHistory = async (req, res) => {
+  try {
+    const member = req.member;
+    const { page = 1, limit = 10 } = req.query;
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await MemberLoginLog.findAndCountAll({
+      where: { member_id: member.id },
+      order: [['operation_time', 'DESC']],
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+
+    res.json({
+      message: '获取登录历史成功',
+      data: {
+        loginHistory: rows,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: count,
+          totalPages: Math.ceil(count / limit)
+        }
+      }
+    });
+  } catch (error) {
+    console.error('获取登录历史错误:', error);
+    res.status(500).json({
+      error: '获取登录历史失败',
+      code: 'GET_LOGIN_HISTORY_ERROR'
+    });
+  }
+};
+
+module.exports = {
+  memberLogin,
+  memberRegister,
+  getMemberList,
+  createMember,
+  updateMember,
+  deleteMember,
+  getMemberDetail,
+  getCurrentMember,
+  updateProfile,
+  changePassword,
+  getLoginHistory
+};

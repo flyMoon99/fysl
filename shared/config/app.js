@@ -1,0 +1,47 @@
+require('dotenv').config();
+
+// 应用配置
+const appConfig = {
+  // 环境配置
+  env: process.env.NODE_ENV || 'development',
+  port: process.env.PORT || 3000,
+  
+  // 前端配置
+  frontend: {
+    port: 8080,
+    apiBaseUrl: process.env.VITE_API_BASE_URL || 'http://localhost:3000/api',
+    adminApiBaseUrl: process.env.VITE_ADMIN_API_BASE_URL || 'http://localhost:3000/admin'
+  },
+  
+  // 管理后台配置
+  admin: {
+    port: 8081
+  },
+  
+  // 日志配置
+  log: {
+    level: process.env.LOG_LEVEL || 'debug'
+  },
+  
+  // CORS配置
+  cors: {
+    origin: ['http://localhost:8080', 'http://localhost:8081'],
+    credentials: true
+  },
+  
+  // 文件上传配置
+  upload: {
+    maxSize: 5 * 1024 * 1024, // 5MB
+    allowedTypes: ['image/jpeg', 'image/png', 'image/gif']
+  }
+};
+
+// 开发环境配置
+const isDevelopment = appConfig.env === 'development';
+const isProduction = appConfig.env === 'production';
+
+module.exports = {
+  appConfig,
+  isDevelopment,
+  isProduction
+};
