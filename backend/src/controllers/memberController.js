@@ -1,4 +1,5 @@
-const { Member, MemberLoginLog } = require('../models');
+const { Member, MemberLoginLog, Device } = require('../models');
+const { Op } = require('sequelize');
 const { generateToken, hashPassword, comparePassword } = require('../middleware/auth');
 const { userStatus } = require('../../../shared/config/auth');
 
@@ -493,6 +494,92 @@ const getLoginHistory = async (req, res) => {
   }
 };
 
+// 获取会员设备列表
+const getMemberDevices = async (req, res) => {
+  try {
+    const { 
+      page = 1, 
+      limit = 10, 
+      status, 
+      device_number,
+      device_model 
+    } = req.query;
+    
+    const memberId = req.member.id; // 从认证中间件获取会员ID
+    const offset = (page - 1) * limit;
+
+    // 构建查询条件 - 只查询当前会员的设备
+    const where = {
+      customer_id: memberId
+    };
+    
+    // 设备状态筛选
+    if (status) where.status = status;
+    
+    // 设备号模糊查询
+    if (device_number) {
+      where.device_number = {
+        [Op.like]: `%${device_number}%`
+      };
+    }
+    
+    // 设备型号筛选
+    if (device_model) {
+      where.device_model = {
+        [Op.like]: `%${device_model}%`
+      };
+    }
+
+    console.log(`[API] 会员 ${memberId} 获取设备列表，查询条件:`, where);
+
+    // 执行查询
+    const { count, rows } = await Device.findAndCountAll({
+      where,
+      attributes: [
+        'id',
+        'device_number',
+        'device_alias',
+        'device_remarks',
+        'status',
+        'device_model',
+        'battery_level',
+        'service_status',
+        'setting_status',
+        'last_update_time',
+        'last_longitude',
+        'last_latitude',
+        'created_at',
+        'updated_at'
+      ],
+      order: [['last_update_time', 'DESC'], ['created_at', 'DESC']],
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+
+    console.log(`[API] 会员 ${memberId} 设备列表查询完成，共 ${count} 个设备`);
+
+    res.json({
+      message: '获取设备列表成功',
+      data: {
+        devices: rows,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: count,
+          totalPages: Math.ceil(count / limit)
+        }
+      }
+    });
+  } catch (error) {
+    console.error('获取会员设备列表错误:', error);
+    res.status(500).json({
+      error: '获取设备列表失败',
+      code: 'GET_MEMBER_DEVICES_ERROR',
+      details: error.message
+    });
+  }
+};
+
 module.exports = {
   memberLogin,
   memberRegister,
@@ -504,5 +591,6 @@ module.exports = {
   getCurrentMember,
   updateProfile,
   changePassword,
-  getLoginHistory
+  getLoginHistory,
+  getMemberDevices
 };

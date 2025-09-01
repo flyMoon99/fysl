@@ -12,6 +12,7 @@ router.get('/me', authenticateMember, memberController.getCurrentMember);
 router.put('/profile', authenticateMember, memberController.updateProfile);
 router.put('/change-password', authenticateMember, memberController.changePassword);
 router.get('/login-history', authenticateMember, memberController.getLoginHistory);
+router.get('/devices', authenticateMember, memberController.getMemberDevices);
 
 // 会员管理功能（需要管理员认证）
 router.get('/list', authenticateAdmin, requireAdmin, memberController.getMemberList);

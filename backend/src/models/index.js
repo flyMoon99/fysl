@@ -5,6 +5,8 @@ const { sequelize } = require('../../../shared/config/database');
 const Admin = require('./Admin');
 const Member = require('./Member');
 const MemberLoginLog = require('./MemberLoginLog');
+const Device = require('./Device');
+const Location = require('./Location');
 
 // 定义模型关联关系
 const defineAssociations = () => {
@@ -18,6 +20,30 @@ const defineAssociations = () => {
   MemberLoginLog.belongsTo(Member, {
     foreignKey: 'member_id',
     as: 'member'
+  });
+
+  // 会员与设备的一对多关系
+  Member.hasMany(Device, {
+    foreignKey: 'customer_id',
+    as: 'devices',
+    onDelete: 'SET NULL'
+  });
+  
+  Device.belongsTo(Member, {
+    foreignKey: 'customer_id',
+    as: 'customer'
+  });
+
+  // 设备与定位记录的一对多关系
+  Device.hasMany(Location, {
+    foreignKey: 'device_id',
+    as: 'locations',
+    onDelete: 'CASCADE'
+  });
+  
+  Location.belongsTo(Device, {
+    foreignKey: 'device_id',
+    as: 'device'
   });
 };
 
@@ -45,6 +71,8 @@ module.exports = {
   Admin,
   Member,
   MemberLoginLog,
+  Device,
+  Location,
   initializeModels,
   Op: Sequelize.Op
 };
