@@ -33,6 +33,14 @@ const appConfig = {
   upload: {
     maxSize: 5 * 1024 * 1024, // 5MB
     allowedTypes: ['image/jpeg', 'image/png', 'image/gif']
+  },
+  
+  // GPS第三方API配置
+  gps: {
+    baseURL: process.env.GPS_API_BASE_URL || 'https://openapi.51hbt.com/',
+    appKey: process.env.GPS_API_APP_KEY || 'fyougps',
+    appSecret: process.env.GPS_API_APP_SECRET || 'P448F2Z008D8LP20H82B',
+    timeout: parseInt(process.env.GPS_API_TIMEOUT) || 30000
   }
 };
 

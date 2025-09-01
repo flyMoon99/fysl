@@ -98,6 +98,14 @@ const routes = [
         meta: {
           title: '登录历史 - 会员中心'
         }
+      },
+      {
+        path: 'devices',
+        name: 'MemberDeviceList',
+        component: () => import('@/views/member/DeviceList.vue'),
+        meta: {
+          title: '设备列表 - 会员中心'
+        }
       }
     ]
   },

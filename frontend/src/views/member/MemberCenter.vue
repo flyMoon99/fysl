@@ -20,17 +20,9 @@
                 <el-icon><House /></el-icon>
                 <span>仪表盘</span>
               </router-link>
-              <router-link to="/member/profile" class="nav-item" exact-active-class="active">
-                <el-icon><User /></el-icon>
-                <span>个人信息</span>
-              </router-link>
-              <router-link to="/member/password" class="nav-item" exact-active-class="active">
-                <el-icon><Lock /></el-icon>
-                <span>修改密码</span>
-              </router-link>
-              <router-link to="/member/login-history" class="nav-item" exact-active-class="active">
-                <el-icon><Clock /></el-icon>
-                <span>登录历史</span>
+              <router-link to="/member/devices" class="nav-item" exact-active-class="active">
+                <el-icon><Position /></el-icon>
+                <span>设备列表</span>
               </router-link>
             </nav>
           </aside>
@@ -52,7 +44,7 @@
 import { useUserStore } from '@/store/user'
 import Header from '@/components/Header.vue'
 import Footer from '@/components/Footer.vue'
-import { House, User, Lock, Clock } from '@element-plus/icons-vue'
+import { House, Position } from '@element-plus/icons-vue'
 
 const userStore = useUserStore()
 </script>

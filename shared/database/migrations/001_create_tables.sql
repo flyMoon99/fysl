@@ -53,3 +53,43 @@ $$ language 'plpgsql'; -- 自动更新updated_at字段的触发器函数
 -- 为表添加更新时间触发器 - 确保数据更新时自动维护更新时间
 CREATE TRIGGER update_admins_updated_at BEFORE UPDATE ON admins FOR EACH ROW EXECUTE FUNCTION update_updated_at_column(); -- 管理员表更新时间触发器
 CREATE TRIGGER update_members_updated_at BEFORE UPDATE ON members FOR EACH ROW EXECUTE FUNCTION update_updated_at_column(); -- 会员表更新时间触发器
+
+-- 4. GPS设备表 - 存储GPS设备信息
+CREATE TABLE IF NOT EXISTS gps_devices (
+    id SERIAL PRIMARY KEY, -- 设备ID，自增主键
+    device_number VARCHAR(50) UNIQUE NOT NULL, -- 设备号，唯一标识
+    device_alias VARCHAR(100), -- 设备别名，用户自定义名称
+    device_remarks TEXT, -- 设备备注，详细描述信息
+    status VARCHAR(20) NOT NULL DEFAULT 'offline' CHECK (status IN ('online', 'offline')), -- 设备状态：online-在线，offline-离线
+    device_model VARCHAR(50), -- 设备型号
+    battery_level INTEGER DEFAULT 0 CHECK (battery_level >= 0 AND battery_level <= 100), -- 剩余电量百分比，0-100
+    service_status VARCHAR(20) DEFAULT 'active' CHECK (service_status IN ('active', 'inactive')), -- 服务状态：active-服务中，inactive-未激活
+    setting_status VARCHAR(20) DEFAULT 'active' CHECK (setting_status IN ('active', 'expired')), -- 设置状态：active-服务中，expired-已到期
+    customer_id INTEGER REFERENCES members(id) ON DELETE SET NULL, -- 关联的客户ID，外键引用members表
+    last_update_time TIMESTAMP, -- 最后更新时间，设备最后一次上报数据的时间
+    last_longitude DECIMAL(10, 7), -- 最后一次上报的经度，精度到7位小数
+    last_latitude DECIMAL(10, 7), -- 最后一次上报的纬度，精度到7位小数
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- 设备创建时间
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 设备信息最后更新时间
+);
+
+-- 5. GPS定位表 - 存储GPS设备的历史定位数据
+CREATE TABLE IF NOT EXISTS gps_locations (
+    id SERIAL PRIMARY KEY, -- 定位记录ID，自增主键
+    device_id INTEGER NOT NULL REFERENCES gps_devices(id) ON DELETE CASCADE, -- 关联的设备ID，外键引用gps_devices表
+    longitude DECIMAL(10, 7) NOT NULL, -- 经度，精度到7位小数
+    latitude DECIMAL(10, 7) NOT NULL, -- 纬度，精度到7位小数
+    coordinate_system VARCHAR(10) NOT NULL DEFAULT 'WGS-84' CHECK (coordinate_system IN ('WGS-84', 'GCJ-02')), -- 坐标系：WGS-84-国际标准，GCJ-02-国测局标准
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 定位数据添加时间
+);
+
+-- GPS相关表索引 - 优化查询性能
+CREATE INDEX IF NOT EXISTS idx_gps_devices_device_number ON gps_devices(device_number); -- 设备号索引，加速设备查询
+CREATE INDEX IF NOT EXISTS idx_gps_devices_customer_id ON gps_devices(customer_id); -- 客户ID索引，加速客户设备查询
+CREATE INDEX IF NOT EXISTS idx_gps_devices_status ON gps_devices(status); -- 设备状态索引，加速状态筛选查询
+CREATE INDEX IF NOT EXISTS idx_gps_devices_last_update_time ON gps_devices(last_update_time); -- 最后更新时间索引，加速时间范围查询
+CREATE INDEX IF NOT EXISTS idx_gps_locations_device_id ON gps_locations(device_id); -- 设备ID索引，加速关联查询
+CREATE INDEX IF NOT EXISTS idx_gps_locations_created_at ON gps_locations(created_at); -- 定位时间索引，加速时间范围查询
+
+-- 为GPS设备表添加更新时间触发器
+CREATE TRIGGER update_gps_devices_updated_at BEFORE UPDATE ON gps_devices FOR EACH ROW EXECUTE FUNCTION update_updated_at_column(); -- GPS设备表更新时间触发器

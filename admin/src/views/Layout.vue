@@ -26,6 +26,11 @@
           <span>会员管理</span>
         </router-link>
         
+        <router-link to="/admin/devices" :class="['menu-item', { active: isActiveMenu('/admin/devices') }]">
+          <el-icon><Position /></el-icon>
+          <span>设备管理</span>
+        </router-link>
+        
         <router-link to="/admin/stats" :class="['menu-item', { active: isActiveMenu('/admin/stats') }]">
           <el-icon><TrendCharts /></el-icon>
           <span>统计分析</span>
@@ -82,6 +87,7 @@ import {
   House, 
   User, 
   Avatar, 
+  Position,
   TrendCharts, 
   ArrowDown 
 } from '@element-plus/icons-vue'

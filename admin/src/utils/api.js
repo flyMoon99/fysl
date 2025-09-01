@@ -112,4 +112,34 @@ export const statsAPI = {
   getLoginStats: (params) => api.get('/stats/logins', { params })
 }
 
+// 设备API
+export const deviceAPI = {
+  // 获取设备列表
+  getDeviceList: (params) => api.get('/device/list', { params }),
+  
+  // 获取设备详情
+  getDeviceDetail: (id) => api.get(`/device/${id}`),
+  
+  // 获取设备统计信息
+  getDeviceStats: () => api.get('/device/stats/overview'),
+  
+  // 获取设备位置历史
+  getDeviceLocationHistory: (id, params) => api.get(`/device/${id}/locations`, { params }),
+  
+  // 获取设备轨迹统计
+  getDeviceTrackStats: (id, params) => api.get(`/device/${id}/track-stats`, { params }),
+  
+  // 同步所有设备信息
+  syncAllDevices: () => api.post('/device/sync/all'),
+  
+  // 同步指定设备的历史轨迹
+  syncDeviceTrack: (deviceNumber, data) => api.post(`/device/sync/${deviceNumber}/track`, data),
+  
+  // 同步设备当前位置
+  syncDeviceCurrentLocation: (deviceNumber) => api.post(`/device/sync/${deviceNumber}/location`),
+  
+  // 批量分配设备客户
+  batchAssignCustomer: (data) => api.post('/device/batch-assign-customer', data)
+}
+
 export default api

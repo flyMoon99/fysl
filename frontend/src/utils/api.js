@@ -96,7 +96,10 @@ export const memberAPI = {
   updateProfile: (profileData) => api.put('/member/profile', profileData),
   
   // 获取登录历史
-  getLoginHistory: (params) => api.get('/member/login-history', { params })
+  getLoginHistory: (params) => api.get('/member/login-history', { params }),
+  
+  // 获取会员设备列表
+  getDevices: (params) => api.get('/member/devices', { params })
 }
 
 export const authAPI = {

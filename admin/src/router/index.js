@@ -38,6 +38,12 @@ const routes = [
         name: 'Statistics',
         component: () => import('@/views/Statistics.vue'),
         meta: { title: '统计分析' }
+      },
+      {
+        path: 'devices',
+        name: 'DeviceManagement',
+        component: () => import('@/views/device/DeviceManagement.vue'),
+        meta: { title: '设备管理' }
       }
     ]
   },
