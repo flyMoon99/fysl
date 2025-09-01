@@ -1,27 +1,23 @@
 const axios = require('axios');
 const crypto = require('crypto');
-
-// GPS第三方API配置
-const GPS_API_CONFIG = {
-  baseURL: 'https://openapi.51hbt.com/',
-  appKey: 'fyougps',
-  appSecret: 'P448F2Z008D8LP20H82B',
-  timeout: 30000
-};
+const { appConfig } = require('../../../shared/config/app');
 
 /**
  * GPS API客户端类
  */
 class GPSApiClient {
   constructor() {
-    this.baseURL = GPS_API_CONFIG.baseURL;
-    this.appKey = GPS_API_CONFIG.appKey;
-    this.appSecret = GPS_API_CONFIG.appSecret;
+    // 从共享配置获取GPS API配置
+    this.baseURL = appConfig.gps.baseURL;
+    this.appKey = appConfig.gps.appKey;
+    this.appSecret = appConfig.gps.appSecret;
+    
+    console.log(`[GPS API] 初始化GPS客户端 - baseURL: ${this.baseURL}, appKey: ${this.appKey}`);
     
     // 创建axios实例
     this.httpClient = axios.create({
       baseURL: this.baseURL,
-      timeout: GPS_API_CONFIG.timeout,
+      timeout: appConfig.gps.timeout,
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded'
       }
