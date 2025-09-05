@@ -237,6 +237,7 @@ const pageSize = ref(10)
 const total = ref(0)
 const deviceList = ref([])
 const currentDevice = ref(null)
+const deviceStats = ref(null)
 
 // 搜索表单
 const searchForm = reactive({
@@ -245,16 +246,7 @@ const searchForm = reactive({
   device_model: ''
 })
 
-// 计算设备统计
-const deviceStats = computed(() => {
-  if (!deviceList.value.length) return null
-  
-  const online = deviceList.value.filter(device => device.status === 'online').length
-  const offline = deviceList.value.filter(device => device.status === 'offline').length
-  const total = deviceList.value.length
-  
-  return { online, offline, total }
-})
+// deviceStats 现在是响应式数据，从后端获取
 
 // 格式化日期时间
 const formatDateTime = (dateString) => {
@@ -291,6 +283,8 @@ const fetchDeviceList = async () => {
     if (response.data.message) {
       deviceList.value = response.data.data.devices
       total.value = response.data.data.pagination.total
+      // 更新设备统计数据
+      deviceStats.value = response.data.data.stats
     }
   } catch (error) {
     console.error('获取设备列表失败:', error)

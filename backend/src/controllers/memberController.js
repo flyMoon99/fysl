@@ -1,4 +1,4 @@
-const { Member, MemberLoginLog, Device, Location } = require('../models');
+const { Member, MemberLoginLog, Device, Location, TransportDetail } = require('../models');
 const { Op } = require('sequelize');
 const { generateToken, hashPassword, comparePassword } = require('../middleware/auth');
 const { userStatus } = require('../../../shared/config/auth');
@@ -547,7 +547,8 @@ const getMemberDevices = async (req, res) => {
       limit = 10, 
       status, 
       device_number,
-      device_model 
+      device_model,
+      unassigned 
     } = req.query;
     
     const memberId = req.member.id; // 从认证中间件获取会员ID
@@ -576,8 +577,8 @@ const getMemberDevices = async (req, res) => {
     }
 
 
-    // 执行查询
-    const { count, rows } = await Device.findAndCountAll({
+    // 构建查询选项
+    let queryOptions = {
       where,
       attributes: [
         'id',
@@ -595,10 +596,50 @@ const getMemberDevices = async (req, res) => {
         'created_at',
         'updated_at'
       ],
-      order: [['last_update_time', 'DESC'], ['created_at', 'DESC']],
+      order: [['id', 'DESC']], // 按设备ID倒序排列
       limit: parseInt(limit),
       offset: parseInt(offset)
+    };
+
+    // 如果需要查询未关联运单的设备
+    if (unassigned === 'true') {
+      // 先查询所有已关联运单的设备ID
+      const assignedDeviceIds = await TransportDetail.findAll({
+        attributes: ['device_id'],
+        raw: true
+      });
+      
+      const assignedIds = assignedDeviceIds.map(item => item.device_id);
+      
+      // 在where条件中排除已关联的设备
+      if (assignedIds.length > 0) {
+        queryOptions.where = {
+          ...queryOptions.where,
+          id: {
+            [Op.notIn]: assignedIds
+          }
+        };
+      }
+    }
+
+    // 执行查询
+    const { count, rows } = await Device.findAndCountAll(queryOptions);
+
+    // 获取用户全部设备的统计数据（不受分页和搜索条件影响）
+    const statsWhere = { customer_id: memberId };
+    const totalDevices = await Device.count({ where: statsWhere });
+    const onlineDevices = await Device.count({ 
+      where: { ...statsWhere, status: 'online' } 
     });
+    const offlineDevices = await Device.count({ 
+      where: { ...statsWhere, status: 'offline' } 
+    });
+
+    const deviceStats = {
+      total: totalDevices,
+      online: onlineDevices,
+      offline: offlineDevices
+    };
 
 
     res.json({
@@ -610,7 +651,8 @@ const getMemberDevices = async (req, res) => {
           limit: parseInt(limit),
           total: count,
           totalPages: Math.ceil(count / limit)
-        }
+        },
+        stats: deviceStats
       }
     });
   } catch (error) {

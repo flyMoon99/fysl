@@ -345,10 +345,13 @@ const fetchWaybillList = async () => {
 // 获取设备列表
 const fetchDeviceList = async () => {
   try {
-    const response = await memberAPI.getDevices({ limit: 1000 })
+    const response = await memberAPI.getDevices({ 
+      limit: 1000,
+      unassigned: 'true' // 只获取未关联运单的设备
+    })
     if (response.data.message) {
       deviceList.value = response.data.data.devices
-      // 筛选出未关联运单的设备（这里暂时显示所有设备，后续可根据实际情况筛选）
+      // 设备已经在后端按ID倒序排列，且只包含未关联运单的设备
       availableDevices.value = response.data.data.devices
     }
   } catch (error) {
