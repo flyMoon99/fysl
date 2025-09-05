@@ -273,12 +273,38 @@ class GPSApiClient {
 
     return trackPoints.map(point => {
       const [timestamp, lat, lng] = point;
+      
+      // 修复时间戳转换问题
+      let dateObj;
+      if (typeof timestamp === 'number') {
+        // 如果是数字时间戳，需要判断是秒还是毫秒
+        if (timestamp > 9999999999) {
+          // 13位数字，毫秒时间戳
+          dateObj = new Date(timestamp);
+        } else {
+          // 10位数字，秒时间戳
+          dateObj = new Date(timestamp * 1000);
+        }
+      } else if (typeof timestamp === 'string') {
+        // 如果是字符串，直接解析
+        dateObj = new Date(timestamp);
+      } else {
+        // 其他情况使用当前时间
+        dateObj = new Date();
+      }
+      
+      // 验证日期是否有效
+      if (isNaN(dateObj.getTime())) {
+        console.warn(`[GPS API] 无效的时间戳: ${timestamp}, 使用当前时间`);
+        dateObj = new Date();
+      }
+      
       return {
         device_id: deviceId,
         longitude: parseFloat(lng),
         latitude: parseFloat(lat),
         coordinate_system: 'WGS-84', // API返回的是WGS84坐标系
-        created_at: new Date(timestamp * 1000) // 时间戳转换为Date对象
+        created_at: dateObj
       };
     });
   }

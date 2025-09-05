@@ -112,15 +112,23 @@
             {{ formatDateTime(scope.row.last_update_time) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="100">
+        <el-table-column label="操作" width="220">
           <template #default="scope">
-            <el-button 
-              size="small" 
-              type="primary" 
-              @click="showDeviceDetail(scope.row)"
-            >
-              详情
-            </el-button>
+            <el-button-group size="small">
+              <el-button
+                type="primary"
+                @click="showDeviceDetail(scope.row)"
+              >
+                详情
+              </el-button>
+              <el-button
+                type="warning"
+                @click="showDeviceTrack(scope.row)"
+              >
+                <el-icon><Operation /></el-icon>
+                轨迹
+              </el-button>
+            </el-button-group>
           </template>
         </el-table-column>
       </el-table>
@@ -191,6 +199,26 @@
         </span>
       </template>
     </el-dialog>
+
+
+    <!-- 设备轨迹对话框 -->
+    <el-dialog
+      v-model="showTrackDialog"
+      title="设备轨迹"
+      width="90%"
+      :close-on-click-modal="false"
+      top="5vh"
+    >
+      <div v-if="currentDevice" class="device-track-dialog">
+        <DeviceTrackMap
+          :device-id="currentDevice.id"
+          :device-info="currentDevice"
+          map-height="600px"
+          @trackLoaded="handleTrackLoaded"
+          @trackError="handleTrackError"
+        />
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -198,10 +226,12 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import { memberAPI } from '@/utils/api'
 import { ElMessage } from 'element-plus'
-import { Connection, Close, Position } from '@element-plus/icons-vue'
+import { Connection, Close, Operation } from '@element-plus/icons-vue'
+import DeviceTrackMap from '@/components/DeviceTrackMap.vue'
 
 const loading = ref(false)
 const showDetailDialog = ref(false)
+const showTrackDialog = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
@@ -295,6 +325,25 @@ const handlePageChange = (page) => {
 const showDeviceDetail = (device) => {
   currentDevice.value = device
   showDetailDialog.value = true
+}
+
+
+// 显示设备轨迹
+const showDeviceTrack = (device) => {
+  currentDevice.value = device
+  showTrackDialog.value = true
+}
+
+
+// 轨迹加载完成
+const handleTrackLoaded = (trackData) => {
+  ElMessage.success(`成功加载 ${trackData.length} 个轨迹点`)
+}
+
+// 轨迹加载错误
+const handleTrackError = (error) => {
+  console.error('[设备列表] 轨迹加载失败:', error)
+  ElMessage.error('轨迹加载失败，请稍后重试')
 }
 
 onMounted(() => {
@@ -438,5 +487,10 @@ onMounted(() => {
   .stat-card {
     padding: 15px;
   }
+}
+
+
+.device-track-dialog {
+  padding: 10px 0;
 }
 </style>

@@ -4,7 +4,7 @@
 -- 插入超级管理员账户
 -- 密码: admin123 (使用bcrypt加密后的值)
 INSERT INTO admins (username, password, type, status) VALUES 
-('admin', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/HS.iQeO', 'super', 'active')
+('admin', '$2b$12$4BisExmXrha58utreMuMo.yXvGENoD9TqGVhJGbLINIC1RzHBwxcq', 'super', 'active')
 ON CONFLICT (username) DO NOTHING;
 
 -- 插入测试会员账户

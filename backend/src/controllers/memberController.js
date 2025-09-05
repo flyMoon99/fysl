@@ -1,4 +1,4 @@
-const { Member, MemberLoginLog, Device } = require('../models');
+const { Member, MemberLoginLog, Device, Location } = require('../models');
 const { Op } = require('sequelize');
 const { generateToken, hashPassword, comparePassword } = require('../middleware/auth');
 const { userStatus } = require('../../../shared/config/auth');
@@ -494,6 +494,51 @@ const getLoginHistory = async (req, res) => {
   }
 };
 
+// 获取会员设备详情
+const getMemberDeviceDetail = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const memberId = req.member.id;
+
+
+    // 查找设备，确保是当前会员的设备
+    const device = await Device.findOne({
+      where: {
+        id: id,
+        customer_id: memberId
+      },
+      include: [
+        {
+          model: Location,
+          as: 'locations',
+          limit: 10,
+          order: [['created_at', 'DESC']],
+          attributes: ['id', 'longitude', 'latitude', 'coordinate_system', 'address', 'created_at']
+        }
+      ]
+    });
+
+    if (!device) {
+      return res.status(404).json({
+        error: '设备不存在或无权限访问',
+        code: 'DEVICE_NOT_FOUND'
+      });
+    }
+
+
+    res.json({
+      message: '获取设备详情成功',
+      data: { device }
+    });
+  } catch (error) {
+    console.error('获取会员设备详情错误:', error);
+    res.status(500).json({
+      error: '获取设备详情失败',
+      code: 'GET_MEMBER_DEVICE_DETAIL_ERROR'
+    });
+  }
+};
+
 // 获取会员设备列表
 const getMemberDevices = async (req, res) => {
   try {
@@ -530,7 +575,6 @@ const getMemberDevices = async (req, res) => {
       };
     }
 
-    console.log(`[API] 会员 ${memberId} 获取设备列表，查询条件:`, where);
 
     // 执行查询
     const { count, rows } = await Device.findAndCountAll({
@@ -556,7 +600,6 @@ const getMemberDevices = async (req, res) => {
       offset: parseInt(offset)
     });
 
-    console.log(`[API] 会员 ${memberId} 设备列表查询完成，共 ${count} 个设备`);
 
     res.json({
       message: '获取设备列表成功',
@@ -580,10 +623,186 @@ const getMemberDevices = async (req, res) => {
   }
 };
 
+// 获取会员设备地图数据
+const getMemberDeviceMapData = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const memberId = req.member.id;
+
+
+    // 查找设备，确保是当前会员的设备
+    const device = await Device.findOne({
+      where: {
+        id: id,
+        customer_id: memberId
+      },
+      attributes: [
+        'id',
+        'device_number',
+        'device_alias',
+        'device_remarks',
+        'status',
+        'battery_level',
+        'last_update_time',
+        'last_longitude',
+        'last_latitude'
+      ]
+    });
+
+    if (!device) {
+      return res.status(404).json({
+        error: '设备不存在或无权限访问',
+        code: 'DEVICE_NOT_FOUND'
+      });
+    }
+
+    // 构建地图数据
+    const mapData = {
+      device: {
+        id: device.id,
+        name: device.device_alias || device.device_number,
+        number: device.device_number,
+        status: device.status,
+        battery: device.battery_level
+      },
+      currentLocation: null,
+      bounds: null
+    };
+
+    // 如果设备有位置信息
+    if (device.last_longitude && device.last_latitude) {
+      mapData.currentLocation = {
+        lat: parseFloat(device.last_latitude),
+        lng: parseFloat(device.last_longitude),
+        updateTime: device.last_update_time
+      };
+
+      // 计算地图边界（当前位置周围1公里范围）
+      const offset = 0.009; // 约1公里
+      mapData.bounds = {
+        northeast: {
+          lat: parseFloat(device.last_latitude) + offset,
+          lng: parseFloat(device.last_longitude) + offset
+        },
+        southwest: {
+          lat: parseFloat(device.last_latitude) - offset,
+          lng: parseFloat(device.last_longitude) - offset
+        }
+      };
+    }
+
+
+    res.json({
+      message: '获取设备地图数据成功',
+      data: mapData
+    });
+  } catch (error) {
+    console.error('获取会员设备地图数据错误:', error);
+    res.status(500).json({
+      error: '获取设备地图数据失败',
+      code: 'GET_MEMBER_DEVICE_MAP_DATA_ERROR',
+      details: error.message
+    });
+  }
+};
+
+// 获取会员设备轨迹点数据
+const getMemberDeviceTrackPoints = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { startTime, endTime, limit = 1000 } = req.query;
+    const memberId = req.member.id;
+
+
+    // 验证设备权限
+    const device = await Device.findOne({
+      where: {
+        id: id,
+        customer_id: memberId
+      }
+    });
+
+    if (!device) {
+      return res.status(404).json({
+        error: '设备不存在或无权限访问',
+        code: 'DEVICE_NOT_FOUND'
+      });
+    }
+
+    // 验证时间参数
+    if (!startTime || !endTime) {
+      return res.status(400).json({
+        error: '开始时间和结束时间不能为空',
+        code: 'INVALID_TIME_RANGE'
+      });
+    }
+
+    // 验证时间跨度不超过7天
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    const diffDays = (end - start) / (1000 * 60 * 60 * 24);
+    
+    if (diffDays > 7) {
+      return res.status(400).json({
+        error: '查询时间跨度不能超过7天',
+        code: 'TIME_RANGE_TOO_LARGE'
+      });
+    }
+
+    // 查询轨迹点数据
+    const trackPoints = await Location.findAll({
+      where: {
+        device_id: id,
+        created_at: {
+          [Op.between]: [start, end]
+        }
+      },
+      attributes: [
+        'longitude',
+        'latitude',
+        'coordinate_system',
+        'address',
+        'created_at'
+      ],
+      order: [['created_at', 'ASC']],
+      limit: parseInt(limit)
+    });
+
+    // 转换数据格式
+    const formattedTrackPoints = trackPoints.map(point => ({
+      lng: parseFloat(point.longitude),
+      lat: parseFloat(point.latitude),
+      timestamp: point.created_at,
+      coordinateSystem: point.coordinate_system,
+      address: point.address || '地址未解析'
+    }));
+
+
+    res.json({
+      message: '获取设备轨迹点数据成功',
+      data: {
+        deviceId: id,
+        deviceNumber: device.device_number,
+        timeRange: { startTime, endTime },
+        trackPoints: formattedTrackPoints,
+        totalPoints: formattedTrackPoints.length
+      }
+    });
+  } catch (error) {
+    console.error('获取会员设备轨迹点数据错误:', error);
+    res.status(500).json({
+      error: '获取设备轨迹点数据失败',
+      code: 'GET_MEMBER_DEVICE_TRACK_POINTS_ERROR',
+      details: error.message
+    });
+  }
+};
+
 module.exports = {
   memberLogin,
   memberRegister,
   getMemberList,
+  getMemberDeviceDetail,
   createMember,
   updateMember,
   deleteMember,
@@ -592,5 +811,7 @@ module.exports = {
   updateProfile,
   changePassword,
   getLoginHistory,
-  getMemberDevices
+  getMemberDevices,
+  getMemberDeviceMapData,
+  getMemberDeviceTrackPoints
 };

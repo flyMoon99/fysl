@@ -1,5 +1,6 @@
 const { Device, Location } = require('../models');
 const { gpsApiClient } = require('../utils/gpsApiClient');
+const { baiduGeocodingService } = require('../utils/baiduGeocodingService');
 const { Op } = require('sequelize');
 
 /**
@@ -168,8 +169,33 @@ class DeviceSyncService {
             continue;
           }
 
+          // 获取地址信息（如果百度地图服务可用）
+          let address = null;
+          if (baiduGeocodingService.isAvailable()) {
+            try {
+              console.log(`[轨迹同步] 开始地址解析，坐标: ${locationPoint.longitude}, ${locationPoint.latitude}`);
+              const geocodeResult = await baiduGeocodingService.reverseGeocode(
+                locationPoint.longitude, 
+                locationPoint.latitude, 
+                locationPoint.coordinate_system === 'WGS-84' ? 'wgs84ll' : 'gcj02ll'
+              );
+              address = geocodeResult.address;
+              console.log(`[轨迹同步] 地址解析成功: ${address}`);
+            } catch (geocodeError) {
+                          console.error(`[轨迹同步] 地址解析失败:`, geocodeError.message);
+            // 根据坐标范围提供大致的地理位置信息
+            address = this.getLocationByCoordinate(locationPoint.longitude, locationPoint.latitude);
+            }
+          } else {
+            console.warn(`[轨迹同步] 百度地图服务不可用，使用坐标范围判断地理位置`);
+            address = this.getLocationByCoordinate(locationPoint.longitude, locationPoint.latitude);
+          }
+
           // 创建新的定位记录
-          await Location.create(locationPoint);
+          await Location.create({
+            ...locationPoint,
+            address: address
+          });
           syncResult.savedPoints++;
         } catch (error) {
           console.error(`[轨迹同步] 保存轨迹点失败:`, error);
@@ -226,11 +252,36 @@ class DeviceSyncService {
 
       // 创建新的位置记录
       if (locationData.longitude && locationData.latitude) {
+        // 获取地址信息（如果百度地图服务可用）
+        let address = null;
+        console.log(`[位置同步] 检查百度地图服务可用性: ${baiduGeocodingService.isAvailable()}`);
+        
+        if (baiduGeocodingService.isAvailable()) {
+          try {
+            console.log(`[位置同步] 开始地址解析，坐标: ${locationData.longitude}, ${locationData.latitude}`);
+            const geocodeResult = await baiduGeocodingService.reverseGeocode(
+              parseFloat(locationData.longitude), 
+              parseFloat(locationData.latitude), 
+              'wgs84ll'
+            );
+            address = geocodeResult.address;
+            console.log(`[位置同步] 地址解析成功: ${address}`);
+          } catch (geocodeError) {
+            console.error(`[位置同步] 地址解析失败:`, geocodeError.message);
+            // 根据坐标范围提供大致的地理位置信息
+            address = this.getLocationByCoordinate(parseFloat(locationData.longitude), parseFloat(locationData.latitude));
+          }
+        } else {
+          console.warn(`[位置同步] 百度地图服务不可用，使用坐标范围判断地理位置`);
+          address = this.getLocationByCoordinate(parseFloat(locationData.longitude), parseFloat(locationData.latitude));
+        }
+
         await Location.create({
           device_id: device.id,
           longitude: parseFloat(locationData.longitude),
           latitude: parseFloat(locationData.latitude),
-          coordinate_system: 'WGS-84'
+          coordinate_system: 'WGS-84',
+          address: address
         });
       }
 
@@ -247,6 +298,52 @@ class DeviceSyncService {
     } catch (error) {
       console.error(`[位置同步] 同步设备 ${deviceNumber} 位置失败:`, error);
       throw error;
+    }
+  }
+
+  /**
+   * 根据坐标获取大致地理位置信息（当百度地图API不可用时的备用方案）
+   * @param {number} lng 经度
+   * @param {number} lat 纬度
+   * @returns {string} 大致地理位置
+   */
+  getLocationByCoordinate(lng, lat) {
+    // 中国大陆的大致坐标范围
+    if (lng >= 73 && lng <= 135 && lat >= 18 && lat <= 54) {
+      // 根据坐标范围判断大致区域
+      if (lng >= 116 && lng <= 117 && lat >= 39 && lat <= 41) {
+        return '北京市';
+      } else if (lng >= 121 && lng <= 122 && lat >= 31 && lat <= 32) {
+        return '上海市';
+      } else if (lng >= 113 && lng <= 114.5 && lat >= 22 && lat <= 24) {
+        return '广东省广州市';
+      } else if (lng >= 114 && lng <= 114.5 && lat >= 22 && lat <= 23) {
+        return '广东省深圳市';
+      } else if (lng >= 106 && lng <= 107 && lat >= 29 && lat <= 30) {
+        return '重庆市';
+      } else if (lng >= 104 && lng <= 105 && lat >= 30 && lat <= 31) {
+        return '四川省成都市';
+      } else if (lng >= 108 && lng <= 109 && lat >= 34 && lat <= 35) {
+        return '陕西省西安市';
+      } else if (lng >= 126 && lng <= 127 && lat >= 45 && lat <= 46) {
+        return '黑龙江省哈尔滨市';
+      } else if (lng >= 87 && lng <= 88 && lat >= 43 && lat <= 44) {
+        return '新疆维吾尔自治区乌鲁木齐市';
+      } else if (lng >= 78 && lng <= 82 && lat >= 43 && lat <= 45) {
+        return '新疆维吾尔自治区';
+      } else {
+        // 根据大致区域划分
+        if (lng < 100) {
+          return '中国西部地区';
+        } else if (lng > 120) {
+          return '中国东部地区';
+        } else {
+          return '中国中部地区';
+        }
+      }
+    } else {
+      // 非中国大陆地区
+      return `坐标: ${lng.toFixed(6)}, ${lat.toFixed(6)}`;
     }
   }
 

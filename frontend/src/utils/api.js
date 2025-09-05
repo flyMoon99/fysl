@@ -16,6 +16,7 @@ api.interceptors.request.use(
   (config) => {
     const userStore = useUserStore()
     
+    
     // 添加认证token
     if (userStore.token) {
       config.headers.Authorization = `Bearer ${userStore.token}`
@@ -38,6 +39,7 @@ api.interceptors.response.use(
   (error) => {
     const userStore = useUserStore()
     
+    
     if (error.response) {
       const { status, data, config } = error.response
       
@@ -49,11 +51,17 @@ api.interceptors.response.use(
             config.url.includes('/admin/login')
           )
           
-          if (!isLoginEndpoint) {
+          // 检查是否是用户信息获取接口，这种情况下不显示错误消息
+          const isUserInfoEndpoint = config.url && config.url.includes('/auth/user-info')
+          
+          if (!isLoginEndpoint && !isUserInfoEndpoint) {
             // 未授权，清除用户状态并跳转到登录页
             userStore.logout()
             ElMessage.error('登录已过期，请重新登录')
             window.location.href = '/login'
+          } else if (isUserInfoEndpoint) {
+            // 用户信息获取失败，静默处理，让store自己决定如何处理
+            console.warn('用户信息获取失败，可能是token过期')
           }
           break
         case 403:
@@ -99,7 +107,17 @@ export const memberAPI = {
   getLoginHistory: (params) => api.get('/member/login-history', { params }),
   
   // 获取会员设备列表
-  getDevices: (params) => api.get('/member/devices', { params })
+  getDevices: (params) => api.get('/member/devices', { params }),
+  getDeviceDetail: (deviceId) => api.get(`/member/devices/${deviceId}`),
+  getDeviceMapData: (deviceId) => api.get(`/member/devices/${deviceId}/map-data`),
+  getDeviceTrackPoints: (deviceId, params) => api.get(`/member/devices/${deviceId}/track-points`, { params }),
+  
+  // 运单管理
+  getWaybills: (params) => api.get('/member/waybills', { params }),
+  getWaybillDetail: (waybillId) => api.get(`/member/waybills/${waybillId}`),
+  createWaybill: (data) => api.post('/member/waybills', data),
+  updateWaybill: (waybillId, data) => api.put(`/member/waybills/${waybillId}`, data),
+  deleteWaybill: (waybillId) => api.delete(`/member/waybills/${waybillId}`)
 }
 
 export const authAPI = {

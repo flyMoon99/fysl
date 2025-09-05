@@ -40,6 +40,11 @@ const Location = sequelize.define('Location', {
     allowNull: false,
     defaultValue: 'WGS-84',
     comment: '坐标系：WGS-84-国际标准，GCJ-02-国测局标准'
+  },
+  address: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    comment: '逆向地理编码得到的详细地址信息'
   }
 }, {
   tableName: 'gps_locations',
@@ -84,6 +89,7 @@ Location.prototype.getFormattedLocation = function() {
     longitude: parseFloat(this.longitude),
     latitude: parseFloat(this.latitude),
     coordinate_system: this.coordinate_system,
+    address: this.address || '地址未解析',
     timestamp: this.created_at
   };
 };
@@ -119,12 +125,13 @@ Location.findByTimeRange = async function(deviceId, startTime, endTime) {
 };
 
 // 类方法：创建位置记录
-Location.createLocation = async function(deviceId, longitude, latitude, coordinateSystem = 'WGS-84') {
+Location.createLocation = async function(deviceId, longitude, latitude, coordinateSystem = 'WGS-84', address = null) {
   return await this.create({
     device_id: deviceId,
     longitude: longitude,
     latitude: latitude,
-    coordinate_system: coordinateSystem
+    coordinate_system: coordinateSystem,
+    address: address
   });
 };
 

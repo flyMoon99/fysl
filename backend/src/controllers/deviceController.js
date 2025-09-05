@@ -4,6 +4,8 @@ const { deviceSyncService } = require('../services/deviceSyncService');
 
 // 获取设备列表
 const getDeviceList = async (req, res) => {
+  console.log('[DEBUG] 获取设备列表请求开始');
+  console.log('[DEBUG] 查询参数:', req.query);
   try {
     const { 
       page = 1, 
@@ -56,7 +58,11 @@ const getDeviceList = async (req, res) => {
       };
     }
 
+    console.log('[DEBUG] 查询条件:', where);
+    console.log('[DEBUG] 分页参数: page:', page, 'limit:', limit, 'offset:', offset);
+
     // 执行查询
+    console.log('[DEBUG] 开始执行数据库查询...');
     const { count, rows } = await Device.findAndCountAll({
       where,
       include: [
@@ -88,6 +94,13 @@ const getDeviceList = async (req, res) => {
       limit: parseInt(limit),
       offset: parseInt(offset)
     });
+
+    console.log('[DEBUG] 查询结果: count=', count, 'rows.length=', rows.length);
+    console.log('[DEBUG] 返回数据预览:', rows.slice(0, 2).map(row => ({
+      id: row.id,
+      device_number: row.device_number,
+      status: row.status
+    })));
 
     res.json({
       message: '获取设备列表成功',
@@ -127,7 +140,7 @@ const getDeviceDetail = async (req, res) => {
           as: 'locations',
           limit: 10,
           order: [['created_at', 'DESC']],
-          attributes: ['id', 'longitude', 'latitude', 'coordinate_system', 'created_at']
+          attributes: ['id', 'longitude', 'latitude', 'coordinate_system', 'address', 'created_at']
         }
       ]
     });
@@ -216,6 +229,14 @@ const getDeviceLocationHistory = async (req, res) => {
 
     const { count, rows } = await Location.findAndCountAll({
       where,
+      attributes: [
+        'id',
+        'longitude',
+        'latitude', 
+        'coordinate_system',
+        'address',
+        'created_at'
+      ],
       order: [['created_at', 'DESC']],
       limit: parseInt(limit),
       offset: parseInt(offset)
@@ -290,7 +311,6 @@ const getDeviceTrackStats = async (req, res) => {
 // 同步所有设备信息
 const syncAllDevices = async (req, res) => {
   try {
-    console.log('[API] 开始同步所有设备信息...');
     
     const syncResult = await deviceSyncService.syncAllDevices();
     
@@ -329,7 +349,6 @@ const syncDeviceTrack = async (req, res) => {
       });
     }
 
-    console.log(`[API] 开始同步设备 ${deviceNumber} 的轨迹数据...`);
     
     const syncResult = await deviceSyncService.syncDeviceTrack(
       deviceNumber,
@@ -363,7 +382,6 @@ const syncDeviceCurrentLocation = async (req, res) => {
       });
     }
 
-    console.log(`[API] 开始同步设备 ${deviceNumber} 的当前位置...`);
     
     const locationData = await deviceSyncService.syncDeviceCurrentLocation(deviceNumber);
     
@@ -401,7 +419,6 @@ const batchAssignCustomer = async (req, res) => {
       });
     }
 
-    console.log(`[API] 开始批量分配设备给客户 ${customerId}，设备数量: ${deviceIds.length}`);
 
     // 验证客户是否存在
     const customer = await Member.findByPk(customerId);
@@ -440,7 +457,6 @@ const batchAssignCustomer = async (req, res) => {
       }
     );
 
-    console.log(`[API] 批量分配完成，更新了 ${updateResult[0]} 个设备`);
 
     res.json({
       message: '批量分配客户成功',
@@ -461,6 +477,290 @@ const batchAssignCustomer = async (req, res) => {
   }
 };
 
+// 获取设备地图数据（管理员）
+const getDeviceMapData = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+
+    // 查找设备
+    const device = await Device.findByPk(id, {
+      include: [
+        {
+          model: Member,
+          as: 'customer',
+          attributes: ['id', 'username'],
+          required: false
+        }
+      ],
+      attributes: [
+        'id',
+        'device_number',
+        'device_alias',
+        'device_remarks',
+        'status',
+        'device_model',
+        'battery_level',
+        'service_status',
+        'setting_status',
+        'customer_id',
+        'last_update_time',
+        'last_longitude',
+        'last_latitude'
+      ]
+    });
+
+    if (!device) {
+      return res.status(404).json({
+        error: '设备不存在',
+        code: 'DEVICE_NOT_FOUND'
+      });
+    }
+
+    // 构建地图数据
+    const mapData = {
+      device: {
+        id: device.id,
+        name: device.device_alias || device.device_number,
+        number: device.device_number,
+        status: device.status,
+        battery: device.battery_level,
+        model: device.device_model,
+        customer: device.customer ? {
+          id: device.customer.id,
+          username: device.customer.username
+        } : null
+      },
+      currentLocation: null,
+      bounds: null
+    };
+
+    // 如果设备有位置信息
+    if (device.last_longitude && device.last_latitude) {
+      mapData.currentLocation = {
+        lat: parseFloat(device.last_latitude),
+        lng: parseFloat(device.last_longitude),
+        updateTime: device.last_update_time
+      };
+
+      // 计算地图边界（当前位置周围1公里范围）
+      const offset = 0.009; // 约1公里
+      mapData.bounds = {
+        northeast: {
+          lat: parseFloat(device.last_latitude) + offset,
+          lng: parseFloat(device.last_longitude) + offset
+        },
+        southwest: {
+          lat: parseFloat(device.last_latitude) - offset,
+          lng: parseFloat(device.last_longitude) - offset
+        }
+      };
+    }
+
+
+    res.json({
+      message: '获取设备地图数据成功',
+      data: mapData
+    });
+  } catch (error) {
+    console.error('获取设备地图数据错误:', error);
+    res.status(500).json({
+      error: '获取设备地图数据失败',
+      code: 'GET_DEVICE_MAP_DATA_ERROR',
+      details: error.message
+    });
+  }
+};
+
+// 获取设备轨迹点数据（管理员）
+const getDeviceTrackPoints = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { startTime, endTime, limit = 1000 } = req.query;
+
+
+    // 验证设备存在
+    const device = await Device.findByPk(id);
+    if (!device) {
+      return res.status(404).json({
+        error: '设备不存在',
+        code: 'DEVICE_NOT_FOUND'
+      });
+    }
+
+    // 验证时间参数
+    if (!startTime || !endTime) {
+      return res.status(400).json({
+        error: '开始时间和结束时间不能为空',
+        code: 'INVALID_TIME_RANGE'
+      });
+    }
+
+    // 验证时间跨度不超过7天
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    const diffDays = (end - start) / (1000 * 60 * 60 * 24);
+    
+    if (diffDays > 7) {
+      return res.status(400).json({
+        error: '查询时间跨度不能超过7天',
+        code: 'TIME_RANGE_TOO_LARGE'
+      });
+    }
+
+    // 查询轨迹点数据
+    const trackPoints = await Location.findAll({
+      where: {
+        device_id: id,
+        created_at: {
+          [Op.between]: [start, end]
+        }
+      },
+      attributes: [
+        'longitude',
+        'latitude',
+        'coordinate_system',
+        'address',
+        'created_at'
+      ],
+      order: [['created_at', 'ASC']],
+      limit: parseInt(limit)
+    });
+
+    // 转换数据格式
+    const formattedTrackPoints = trackPoints.map(point => ({
+      lng: parseFloat(point.longitude),
+      lat: parseFloat(point.latitude),
+      timestamp: point.created_at,
+      coordinateSystem: point.coordinate_system,
+      address: point.address || '地址未解析'
+    }));
+
+
+    res.json({
+      message: '获取设备轨迹点数据成功',
+      data: {
+        deviceId: id,
+        deviceNumber: device.device_number,
+        timeRange: { startTime, endTime },
+        trackPoints: formattedTrackPoints,
+        totalPoints: formattedTrackPoints.length
+      }
+    });
+  } catch (error) {
+    console.error('获取设备轨迹点数据错误:', error);
+    res.status(500).json({
+      error: '获取设备轨迹点数据失败',
+      code: 'GET_DEVICE_TRACK_POINTS_ERROR',
+      details: error.message
+    });
+  }
+};
+
+// 获取多个设备的地图数据（管理员批量查看）
+const getMultipleDevicesMapData = async (req, res) => {
+  try {
+    const { deviceIds } = req.body;
+
+    if (!deviceIds || !Array.isArray(deviceIds) || deviceIds.length === 0) {
+      return res.status(400).json({
+        error: '设备ID列表不能为空',
+        code: 'INVALID_DEVICE_IDS'
+      });
+    }
+
+
+    // 查找所有设备
+    const devices = await Device.findAll({
+      where: {
+        id: {
+          [Op.in]: deviceIds
+        }
+      },
+      include: [
+        {
+          model: Member,
+          as: 'customer',
+          attributes: ['id', 'username'],
+          required: false
+        }
+      ],
+      attributes: [
+        'id',
+        'device_number',
+        'device_alias',
+        'status',
+        'battery_level',
+        'last_update_time',
+        'last_longitude',
+        'last_latitude'
+      ]
+    });
+
+    // 构建地图数据
+    const devicesMapData = devices.map(device => ({
+      id: device.id,
+      name: device.device_alias || device.device_number,
+      number: device.device_number,
+      status: device.status,
+      battery: device.battery_level,
+      customer: device.customer ? device.customer.username : null,
+      location: device.last_longitude && device.last_latitude ? {
+        lat: parseFloat(device.last_latitude),
+        lng: parseFloat(device.last_longitude),
+        updateTime: device.last_update_time
+      } : null
+    }));
+
+    // 计算整体边界
+    const validLocations = devicesMapData.filter(device => device.location);
+    let bounds = null;
+    
+    if (validLocations.length > 0) {
+      const lats = validLocations.map(device => device.location.lat);
+      const lngs = validLocations.map(device => device.location.lng);
+      
+      const minLat = Math.min(...lats);
+      const maxLat = Math.max(...lats);
+      const minLng = Math.min(...lngs);
+      const maxLng = Math.max(...lngs);
+      
+      // 添加边距
+      const latMargin = (maxLat - minLat) * 0.1;
+      const lngMargin = (maxLng - minLng) * 0.1;
+      
+      bounds = {
+        northeast: {
+          lat: maxLat + latMargin,
+          lng: maxLng + lngMargin
+        },
+        southwest: {
+          lat: minLat - latMargin,
+          lng: minLng - lngMargin
+        }
+      };
+    }
+
+
+    res.json({
+      message: '获取多设备地图数据成功',
+      data: {
+        devices: devicesMapData,
+        bounds,
+        totalDevices: devicesMapData.length,
+        devicesWithLocation: validLocations.length
+      }
+    });
+  } catch (error) {
+    console.error('获取多设备地图数据错误:', error);
+    res.status(500).json({
+      error: '获取多设备地图数据失败',
+      code: 'GET_MULTIPLE_DEVICES_MAP_DATA_ERROR',
+      details: error.message
+    });
+  }
+};
+
 module.exports = {
   getDeviceList,
   getDeviceDetail,
@@ -470,5 +770,8 @@ module.exports = {
   syncAllDevices,
   syncDeviceTrack,
   syncDeviceCurrentLocation,
-  batchAssignCustomer
+  batchAssignCustomer,
+  getDeviceMapData,
+  getDeviceTrackPoints,
+  getMultipleDevicesMapData
 };

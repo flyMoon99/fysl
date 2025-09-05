@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env') });
 
 // 应用配置
 const appConfig = {
@@ -41,6 +41,22 @@ const appConfig = {
     appKey: process.env.GPS_API_APP_KEY || 'fyougps',
     appSecret: process.env.GPS_API_APP_SECRET || 'P448F2Z008D8LP20H82B',
     timeout: parseInt(process.env.GPS_API_TIMEOUT) || 30000
+  },
+  
+  // 百度地图API配置
+  baiduMap: {
+    apiKey: process.env.BAIDU_MAP_API_KEY || '',
+    version: '3.0', // 百度地图API版本
+    plugins: ['TrackAnimation', 'MarkerClusterer'], // 需要的插件
+    enableHighResolution: true, // 启用高分辨率
+    enableAutoResize: true, // 启用自动调整大小
+    enableMapClick: true // 启用地图点击事件
+  },
+  
+  // 百度地图逆向地理编码API配置
+  baidu: {
+    ak: process.env.BAIDU_MAP_AK || process.env.BAIDU_MAP_API_KEY || '', // 优先使用BAIDU_MAP_AK，兼容BAIDU_MAP_API_KEY
+    timeout: parseInt(process.env.BAIDU_GEOCODING_TIMEOUT) || 10000
   }
 };
 

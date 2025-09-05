@@ -104,7 +104,19 @@ const routes = [
         name: 'MemberDeviceList',
         component: () => import('@/views/member/DeviceList.vue'),
         meta: {
-          title: '设备列表 - 会员中心'
+          title: '设备列表 - 会员中心',
+          requiresAuth: true,
+          userType: 'member'
+        }
+      },
+      {
+        path: 'waybills',
+        name: 'MemberWaybillList',
+        component: () => import('@/views/member/WaybillList.vue'),
+        meta: {
+          title: '运单列表 - 会员中心',
+          requiresAuth: true,
+          userType: 'member'
         }
       }
     ]
@@ -135,6 +147,7 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   const userStore = useUserStore()
   
+  
   // 设置页面标题
   if (to.meta.title) {
     document.title = to.meta.title
@@ -153,6 +166,11 @@ router.beforeEach((to, from, next) => {
     
     // 检查用户类型权限
     if (to.meta.userType && userStore.userType !== to.meta.userType) {
+      // 如果还在初始化中且有token，允许通过（等待初始化完成）
+      if (!userStore.isInitialized && userStore.token) {
+        next()
+        return
+      }
       // 用户类型不匹配，跳转到首页
       next('/')
       return

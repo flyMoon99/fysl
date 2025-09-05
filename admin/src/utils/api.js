@@ -139,7 +139,12 @@ export const deviceAPI = {
   syncDeviceCurrentLocation: (deviceNumber) => api.post(`/device/sync/${deviceNumber}/location`),
   
   // 批量分配设备客户
-  batchAssignCustomer: (data) => api.post('/device/batch-assign-customer', data)
+  batchAssignCustomer: (data) => api.post('/device/batch-assign-customer', data),
+  
+  // 地图相关API
+  getDeviceMapData: (deviceId) => api.get(`/device/${deviceId}/map-data`),
+  getDeviceTrackPoints: (deviceId, params) => api.get(`/device/${deviceId}/track-points`, { params }),
+  getMultipleDevicesMapData: (deviceIds) => api.post('/device/multiple-map-data', { deviceIds })
 }
 
 export default api

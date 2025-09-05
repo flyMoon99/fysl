@@ -93,3 +93,39 @@ CREATE INDEX IF NOT EXISTS idx_gps_locations_created_at ON gps_locations(created
 
 -- 为GPS设备表添加更新时间触发器
 CREATE TRIGGER update_gps_devices_updated_at BEFORE UPDATE ON gps_devices FOR EACH ROW EXECUTE FUNCTION update_updated_at_column(); -- GPS设备表更新时间触发器
+
+
+--6 运单表
+CREATE TABLE waybills (
+    id SERIAL PRIMARY KEY,
+    waybill_number VARCHAR(100) NOT NULL UNIQUE COMMENT '运单号',
+    waybill_remarks TEXT COMMENT '运单备注',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    created_by VARCHAR(100) NOT NULL COMMENT '创建人',
+    view_password VARCHAR(255) COMMENT '查看密码'
+);
+
+--7 运输明细表
+CREATE TABLE transport_details (
+    id SERIAL PRIMARY KEY,
+    waybill_id INTEGER NOT NULL COMMENT '运单id',
+    waybill_number VARCHAR(100) NOT NULL COMMENT '运单号',
+    device_id INTEGER NOT NULL COMMENT '设备id',
+    longitude DECIMAL(10, 7) COMMENT '经度',
+    latitude DECIMAL(10, 7) COMMENT '纬度',
+    location VARCHAR(255) COMMENT '位置',
+    last_update_time TIMESTAMP COMMENT '最后更新时间',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    transport_remarks TEXT COMMENT '运输备注',
+    license_plate VARCHAR(20) COMMENT '车牌号',
+    
+    -- 外键约束
+    FOREIGN KEY (waybill_id) REFERENCES waybills(id) ON DELETE CASCADE,
+    FOREIGN KEY (device_id) REFERENCES gps_devices(id) ON DELETE CASCADE,
+    
+    -- 索引
+    INDEX idx_waybill_id (waybill_id),
+    INDEX idx_device_id (device_id),
+    INDEX idx_waybill_number (waybill_number),
+    INDEX idx_created_at (created_at)
+);

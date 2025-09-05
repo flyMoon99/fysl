@@ -12,7 +12,6 @@ const Admin = sequelize.define('Admin', {
   username: {
     type: DataTypes.STRING(50),
     allowNull: false,
-    unique: true,
     comment: '管理员用户名，唯一标识',
     validate: {
       len: [3, 50],

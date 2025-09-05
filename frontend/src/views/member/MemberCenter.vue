@@ -24,6 +24,10 @@
                 <el-icon><Position /></el-icon>
                 <span>设备列表</span>
               </router-link>
+              <router-link to="/member/waybills" class="nav-item" exact-active-class="active">
+                <el-icon><Document /></el-icon>
+                <span>运单列表</span>
+              </router-link>
             </nav>
           </aside>
 
@@ -44,7 +48,7 @@
 import { useUserStore } from '@/store/user'
 import Header from '@/components/Header.vue'
 import Footer from '@/components/Footer.vue'
-import { House, Position } from '@element-plus/icons-vue'
+import { House, Position, Document } from '@element-plus/icons-vue'
 
 const userStore = useUserStore()
 </script>

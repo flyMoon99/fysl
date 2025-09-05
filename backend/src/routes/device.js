@@ -32,4 +32,13 @@ router.post('/sync/:deviceNumber/location', authenticateAdmin, requireAdmin, dev
 // 批量分配设备客户
 router.post('/batch-assign-customer', authenticateAdmin, requireAdmin, deviceController.batchAssignCustomer);
 
+// 获取设备地图数据
+router.get('/:id/map-data', authenticateAdmin, requireAdmin, deviceController.getDeviceMapData);
+
+// 获取设备轨迹点数据
+router.get('/:id/track-points', authenticateAdmin, requireAdmin, deviceController.getDeviceTrackPoints);
+
+// 批量获取多个设备地图数据
+router.post('/multiple-map-data', authenticateAdmin, requireAdmin, deviceController.getMultipleDevicesMapData);
+
 module.exports = router;

@@ -7,6 +7,8 @@ const Member = require('./Member');
 const MemberLoginLog = require('./MemberLoginLog');
 const Device = require('./Device');
 const Location = require('./Location');
+const Waybill = require('./Waybill');
+const TransportDetail = require('./TransportDetail');
 
 // 定义模型关联关系
 const defineAssociations = () => {
@@ -45,6 +47,30 @@ const defineAssociations = () => {
     foreignKey: 'device_id',
     as: 'device'
   });
+
+  // 运单与运输明细的一对多关系
+  Waybill.hasMany(TransportDetail, {
+    foreignKey: 'waybill_id',
+    as: 'transportDetails',
+    onDelete: 'CASCADE'
+  });
+  
+  TransportDetail.belongsTo(Waybill, {
+    foreignKey: 'waybill_id',
+    as: 'waybill'
+  });
+
+  // 设备与运输明细的一对多关系
+  Device.hasMany(TransportDetail, {
+    foreignKey: 'device_id',
+    as: 'transportDetails',
+    onDelete: 'CASCADE'
+  });
+  
+  TransportDetail.belongsTo(Device, {
+    foreignKey: 'device_id',
+    as: 'device'
+  });
 };
 
 // 初始化所有模型
@@ -55,7 +81,8 @@ const initializeModels = async () => {
     
     // 同步数据库（开发环境）
     if (process.env.NODE_ENV === 'development') {
-      await sequelize.sync({ alter: true });
+      // 使用force: false避免强制重建表，使用alter: false避免修改现有表结构
+      await sequelize.sync({ force: false, alter: false });
       console.log('数据库模型同步完成');
     }
     
@@ -73,6 +100,8 @@ module.exports = {
   MemberLoginLog,
   Device,
   Location,
+  Waybill,
+  TransportDetail,
   initializeModels,
   Op: Sequelize.Op
 };

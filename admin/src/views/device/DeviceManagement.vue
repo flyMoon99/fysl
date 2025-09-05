@@ -26,48 +26,47 @@
     <!-- 搜索栏 -->
     <div class="content-body">
       <div class="search-bar">
-        <el-form :inline="true" :model="searchForm" class="search-form">
-          <el-form-item label="设备号">
-            <el-input 
-              v-model="searchForm.device_number" 
-              placeholder="请输入设备号"
-              clearable
-            />
-          </el-form-item>
-          <el-form-item label="设备状态">
-            <el-select v-model="searchForm.status" placeholder="请选择状态" clearable>
-              <el-option label="在线" value="online" />
-              <el-option label="离线" value="offline" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="服务状态">
-            <el-select v-model="searchForm.service_status" placeholder="请选择服务状态" clearable>
-              <el-option label="服务中" value="active" />
-              <el-option label="未激活" value="inactive" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="设备型号">
-            <el-input 
-              v-model="searchForm.device_model" 
-              placeholder="请输入设备型号"
-              clearable
-            />
-          </el-form-item>
-          <el-form-item label="创建时间">
-            <el-date-picker
-              v-model="searchForm.dateRange"
-              type="daterange"
-              range-separator="至"
-              start-placeholder="开始日期"
-              end-placeholder="结束日期"
-              format="YYYY-MM-DD"
-              value-format="YYYY-MM-DD"
-            />
-          </el-form-item>
-          <el-form-item>
-            <el-button type="primary" @click="handleSearch">搜索</el-button>
-            <el-button @click="resetSearch">重置</el-button>
-          </el-form-item>
+        <el-form :model="searchForm" class="search-form">
+          <div class="search-row">
+            <el-form-item label="设备号">
+              <el-input 
+                v-model="searchForm.device_number" 
+                placeholder="请输入设备号"
+                clearable
+                style="width: 200px;"
+              />
+            </el-form-item>
+            <el-form-item label="设备状态">
+              <el-select v-model="searchForm.status" placeholder="请选择状态" clearable style="width: 140px;">
+                <el-option label="在线" value="online" />
+                <el-option label="离线" value="offline" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="服务状态">
+              <el-select v-model="searchForm.service_status" placeholder="请选择服务状态" clearable style="width: 140px;">
+                <el-option label="服务中" value="active" />
+                <el-option label="未激活" value="inactive" />
+              </el-select>
+            </el-form-item>
+          </div>
+          <div class="search-row">
+            <el-form-item label="创建时间">
+              <el-date-picker
+                v-model="searchForm.dateRange"
+                type="daterange"
+                range-separator="至"
+                start-placeholder="开始日期"
+                end-placeholder="结束日期"
+                format="YYYY-MM-DD"
+                value-format="YYYY-MM-DD"
+                style="width: 300px;"
+              />
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" @click="handleSearch">搜索</el-button>
+              <el-button @click="resetSearch">重置</el-button>
+            </el-form-item>
+          </div>
         </el-form>
       </div>
 
@@ -149,36 +148,39 @@
             {{ formatDateTime(scope.row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="400" fixed="right">
+        <el-table-column label="操作" width="480" fixed="right">
           <template #default="scope">
-            <el-button 
-              size="small" 
-              @click="handleView(scope.row)"
-            >
-              查看
-            </el-button>
-            <el-button 
-              size="small" 
-              type="primary"
-              @click="handleViewLocation(scope.row)"
-            >
-              位置记录
-            </el-button>
-            <el-button 
-              size="small" 
-              type="warning"
-              @click="handleGetLocation(scope.row)"
-              :loading="scope.row.syncing"
-            >
-              获取位置
-            </el-button>
-            <el-button 
-              size="small" 
-              type="success"
-              @click="showGetTrackDialog(scope.row)"
-            >
-              获取轨迹
-            </el-button>
+            <div class="action-buttons">
+              <el-button 
+                size="small" 
+                @click="handleView(scope.row)"
+              >
+                查看
+              </el-button>
+              <el-button 
+                size="small" 
+                type="info"
+                @click="showDeviceOnMap(scope.row)"
+                :disabled="!scope.row.last_longitude || !scope.row.last_latitude"
+              >
+                <el-icon><Position /></el-icon>
+                地图
+              </el-button>
+              <el-button 
+                size="small" 
+                type="primary"
+                @click="handleViewLocation(scope.row)"
+              >
+                位置记录
+              </el-button>
+              <el-button 
+                size="small" 
+                type="success"
+                @click="showGetTrackDialog(scope.row)"
+              >
+                获取轨迹
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -294,7 +296,7 @@
     <el-dialog 
       v-model="showLocationDialog" 
       title="位置记录"
-      width="800px"
+      width="1000px"
     >
       <div class="location-header" v-if="currentDevice">
         <h4>{{ currentDevice.device_number }} - {{ currentDevice.device_alias || '设备位置记录' }}</h4>
@@ -312,6 +314,11 @@
           </template>
         </el-table-column>
         <el-table-column prop="coordinate_system" label="坐标系" width="100" />
+        <el-table-column prop="address" label="地址" min-width="200">
+          <template #default="scope">
+            {{ scope.row.address || '地址未解析' }}
+          </template>
+        </el-table-column>
         <el-table-column prop="created_at" label="记录时间" width="180">
           <template #default="scope">
             {{ formatDateTime(scope.row.created_at) }}
@@ -377,6 +384,59 @@
           </el-button>
         </span>
       </template>
+    </el-dialog>
+
+    <!-- 设备地图位置对话框 -->
+    <el-dialog
+      v-model="showMapDialog"
+      title="设备位置"
+      width="80%"
+      :close-on-click-modal="false"
+    >
+      <div v-if="currentDevice" class="device-map-dialog">
+        <div class="map-header">
+          <div class="device-info">
+            <h4>{{ currentDevice.device_alias || currentDevice.device_number }} - 当前位置</h4>
+            <div class="device-tags">
+              <el-tag :type="currentDevice.status === 'online' ? 'success' : 'danger'" size="small">
+                {{ currentDevice.status === 'online' ? '在线' : '离线' }}
+              </el-tag>
+              <el-tag v-if="currentDevice.customer" type="info" size="small" style="margin-left: 5px;">
+                客户: {{ currentDevice.customer.username }}
+              </el-tag>
+            </div>
+          </div>
+          <div class="map-actions">
+            <el-button size="small" @click="showDeviceTrackMap">查看轨迹</el-button>
+          </div>
+        </div>
+        <MapContainer
+          ref="mapRef"
+          height="500px"
+          :center="mapCenter"
+          :zoom="15"
+          @mapReady="handleMapReady"
+        />
+      </div>
+    </el-dialog>
+
+    <!-- 设备轨迹地图对话框 -->
+    <el-dialog
+      v-model="showTrackMapDialog"
+      title="设备轨迹"
+      width="90%"
+      :close-on-click-modal="false"
+      top="5vh"
+    >
+      <div v-if="currentDevice" class="device-track-dialog">
+        <DeviceTrackMap
+          :device-id="currentDevice.id"
+          :device-info="currentDevice"
+          map-height="600px"
+          @trackLoaded="handleTrackLoaded"
+          @trackError="handleTrackError"
+        />
+      </div>
     </el-dialog>
 
     <!-- 分配客户对话框 -->
@@ -450,13 +510,17 @@
 import { ref, reactive, onMounted, watch } from 'vue'
 import { deviceAPI, memberAPI } from '@/utils/api'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Refresh, User } from '@element-plus/icons-vue'
+import { Refresh, User, Position } from '@element-plus/icons-vue'
+import MapContainer from '@/components/MapContainer.vue'
+import DeviceTrackMap from '@/components/DeviceTrackMap.vue'
 
 const loading = ref(false)
 const showDetailDialog = ref(false)
 const showLocationDialog = ref(false)
 const showTrackDialog = ref(false)
 const showAssignDialog = ref(false)
+const showMapDialog = ref(false)
+const showTrackMapDialog = ref(false)
 const syncingDevices = ref(false)
 const syncingTrack = ref(false)
 const assigningCustomer = ref(false)
@@ -474,6 +538,8 @@ const locationTotal = ref(0)
 const selectedDevices = ref([])
 const memberList = ref([])
 const deviceTableRef = ref()
+const mapRef = ref()
+const mapCenter = ref({ lng: 116.404, lat: 39.915 })
 
 // 搜索表单
 const searchForm = reactive({
@@ -664,38 +730,6 @@ const handleSyncDevices = async () => {
   }
 }
 
-// 获取设备位置
-const handleGetLocation = async (row) => {
-  try {
-    await ElMessageBox.confirm(
-      `确定要获取设备 "${row.device_number}" 的当前位置吗？`,
-      '获取位置',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'info'
-      }
-    )
-    
-    // 设置行级loading状态
-    row.syncing = true
-    
-    const response = await deviceAPI.syncDeviceCurrentLocation(row.device_number)
-    
-    if (response.data.message) {
-      ElMessage.success('位置获取成功')
-      // 刷新设备列表
-      fetchDeviceList()
-    }
-  } catch (error) {
-    if (error !== 'cancel') {
-      console.error('获取位置失败:', error)
-      ElMessage.error('获取位置失败')
-    }
-  } finally {
-    row.syncing = false
-  }
-}
 
 // 显示轨迹同步对话框
 const showGetTrackDialog = (row) => {
@@ -814,6 +848,85 @@ const fetchMemberList = async () => {
   }
 }
 
+// 显示设备在地图上的位置
+const showDeviceOnMap = async (device) => {
+  if (!device.last_longitude || !device.last_latitude) {
+    ElMessage.warning('该设备暂无位置信息')
+    return
+  }
+  
+  try {
+    // 获取设备详情以获取地址信息
+    const response = await deviceAPI.getDeviceDetail(device.id)
+    if (response.data.message) {
+      const deviceDetail = response.data.data.device
+      // 获取最新的位置记录中的地址
+      const latestLocation = deviceDetail.locations && deviceDetail.locations[0]
+      if (latestLocation && latestLocation.address) {
+        deviceDetail.address = latestLocation.address
+      }
+      currentDevice.value = deviceDetail
+    } else {
+      currentDevice.value = device
+    }
+  } catch (error) {
+    console.error('获取设备详情失败:', error)
+    currentDevice.value = device
+  }
+  
+  mapCenter.value = {
+    lng: parseFloat(device.last_longitude),
+    lat: parseFloat(device.last_latitude)
+  }
+  showMapDialog.value = true
+}
+
+// 显示设备轨迹地图
+const showDeviceTrackMap = () => {
+  showMapDialog.value = false
+  showTrackMapDialog.value = true
+}
+
+// 地图准备就绪
+const handleMapReady = (mapInstance) => {
+  console.log('[设备管理] 地图初始化完成')
+  
+  if (currentDevice.value && currentDevice.value.last_longitude && currentDevice.value.last_latitude) {
+    console.log('[设备管理] 准备添加设备标记:', {
+      device: currentDevice.value.device_number,
+      lng: currentDevice.value.last_longitude,
+      lat: currentDevice.value.last_latitude
+    })
+    
+    // 在地图上添加设备标记
+    const mapUtils = mapRef.value?.mapUtils
+    if (mapUtils) {
+      console.log('[设备管理] 找到mapUtils，开始添加标记')
+      const marker = mapUtils.addDeviceMarker(currentDevice.value, {
+        lng: parseFloat(currentDevice.value.last_longitude),
+        lat: parseFloat(currentDevice.value.last_latitude)
+      })
+      console.log('[设备管理] 标记添加结果:', marker)
+    } else {
+      console.error('[设备管理] 未找到mapUtils')
+    }
+  } else {
+    console.warn('[设备管理] 设备位置信息不完整:', currentDevice.value)
+  }
+}
+
+// 轨迹加载完成
+const handleTrackLoaded = (trackData) => {
+  console.log('[设备管理] 轨迹加载完成:', trackData.length, '个点')
+  ElMessage.success(`成功加载 ${trackData.length} 个轨迹点`)
+}
+
+// 轨迹加载错误
+const handleTrackError = (error) => {
+  console.error('[设备管理] 轨迹加载失败:', error)
+  ElMessage.error('轨迹加载失败，请稍后重试')
+}
+
 // 批量分配客户
 const handleBatchAssign = async () => {
   try {
@@ -909,6 +1022,17 @@ onMounted(() => {
 
 .search-form {
   margin: 0;
+}
+
+.search-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 15px;
+}
+
+.search-row:last-child {
+  margin-bottom: 0;
 }
 
 .pagination-wrapper {
@@ -1022,12 +1146,21 @@ onMounted(() => {
 
 /* 响应式设计 */
 @media (max-width: 768px) {
-  .search-form {
-    display: block;
+  .search-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
   }
   
-  .search-form .el-form-item {
-    margin-bottom: 15px;
+  .search-row .el-form-item {
+    width: 100%;
+    margin-bottom: 10px;
+  }
+  
+  .search-row .el-input,
+  .search-row .el-select,
+  .search-row .el-date-picker {
+    width: 100% !important;
   }
   
   .detail-row {
@@ -1044,5 +1177,49 @@ onMounted(() => {
     width: auto;
     margin-bottom: 5px;
   }
+}
+
+/* 操作按钮样式 */
+.action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.action-buttons .el-button {
+  margin: 0;
+}
+
+/* 地图相关样式 */
+.device-map-dialog {
+  padding: 10px 0;
+}
+
+.map-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #ebeef5;
+}
+
+.device-info h4 {
+  margin: 0 0 10px 0;
+  color: #303133;
+  font-size: 16px;
+}
+
+.device-tags {
+  display: flex;
+  gap: 5px;
+}
+
+.map-actions {
+  flex-shrink: 0;
+}
+
+.device-track-dialog {
+  padding: 10px 0;
 }
 </style>
