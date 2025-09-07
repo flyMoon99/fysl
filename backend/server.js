@@ -16,6 +16,7 @@ const adminRoutes = require('./src/routes/admin');
 const memberRoutes = require('./src/routes/member');
 const statsRoutes = require('./src/routes/stats');
 const deviceRoutes = require('./src/routes/device');
+const publicRoutes = require('./src/routes/public');
 
 const app = express();
 
@@ -53,6 +54,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/member', memberRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/device', deviceRoutes);
+app.use('/api/public', publicRoutes);
 
 // 健康检查
 app.get('/health', (req, res) => {

@@ -136,7 +136,7 @@ import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search, VideoPlay, VideoPause, RefreshLeft } from '@element-plus/icons-vue'
 import MapContainer from './MapContainer.vue'
-import { memberAPI } from '@/utils/api'
+import { publicAPI } from '@/utils/api'
 
 // Props
 const props = defineProps({
@@ -169,6 +169,8 @@ const emit = defineEmits([
   'pointSelected'
 ])
 
+// 移除用户状态依赖，统一使用公开API
+
 // 响应式数据
 const loadingTrack = ref(false)
 const trackData = ref([])
@@ -176,6 +178,7 @@ const timeRange = ref([])
 const mapContainerRef = ref()
 const showTrackDetail = ref(false)
 const selectedTrackPoint = ref(null)
+const hasLoadedTrack = ref(false) // 防止重复加载
 
 // 播放控制
 const isPlaying = ref(false)
@@ -329,20 +332,28 @@ const loadTrackData = async () => {
   try {
     loadingTrack.value = true
     
-    // 调用真实的API获取轨迹数据
-    const response = await memberAPI.getDeviceTrackPoints(props.deviceId, {
+    // 统一使用公开API获取轨迹数据
+    const response = await publicAPI.getDeviceTrackPoints(props.deviceId, {
       startTime: timeRange.value[0],
       endTime: timeRange.value[1],
       limit: 1000
     })
     
-    trackData.value = response.data.data.trackPoints || []
+    // 处理轨迹数据格式
+    const trackPoints = response.data.data.trackPoints || []
+    trackData.value = trackPoints.map(point => ({
+      longitude: point.longitude,
+      latitude: point.latitude,
+      timestamp: point.timestamp,
+      coordinateSystem: point.coordinateSystem,
+      address: point.address
+    }))
     currentPlayIndex.value = 0
-    
     
     if (trackData.value.length > 0) {
       drawTrackOnMap()
       emit('trackLoaded', trackData.value)
+      hasLoadedTrack.value = true // 标记已加载
       ElMessage.success(`成功加载 ${trackData.value.length} 个轨迹点`)
     } else {
       ElMessage.info('该时间段内没有轨迹数据')
@@ -521,8 +532,9 @@ const handleMapReady = (mapInstance) => {
     mapZoom.value = 15
   }
 
-  // 自动加载轨迹
-  if (props.autoLoad && timeRange.value.length === 2) {
+  // 自动加载轨迹（只在 autoLoad 为 true 且时间范围已设置且未加载过时）
+  if (props.autoLoad && timeRange.value.length === 2 && !hasLoadedTrack.value) {
+    console.log('地图准备就绪，开始自动加载轨迹数据')
     loadTrackData()
   }
 }
@@ -541,10 +553,8 @@ onMounted(() => {
     end.toISOString().slice(0, 19).replace('T', ' ')
   ]
   
-  // 自动加载轨迹数据
-  if (timeRange.value.length === 2) {
-    loadTrackData()
-  }
+  // 注意：不在这里自动加载轨迹数据，避免重复加载
+  // 轨迹数据将在 handleMapReady 中根据 autoLoad 属性决定是否加载
 })
 
 onUnmounted(() => {
@@ -553,8 +563,9 @@ onUnmounted(() => {
 
 // 监听设备变化
 watch(() => props.deviceId, () => {
-  // 设备变化时清空轨迹数据
+  // 设备变化时清空轨迹数据和加载状态
   trackData.value = []
+  hasLoadedTrack.value = false
   stopPlayback()
   currentPlayIndex.value = 0
 })

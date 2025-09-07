@@ -25,14 +25,6 @@
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-input
-            v-model="searchForm.device_model"
-            placeholder="设备型号"
-            clearable
-            style="width: 150px"
-          />
-        </el-form-item>
-        <el-form-item>
           <el-button type="primary" @click="handleSearch">搜索</el-button>
           <el-button @click="resetSearch">重置</el-button>
         </el-form-item>
@@ -242,8 +234,7 @@ const deviceStats = ref(null)
 // 搜索表单
 const searchForm = reactive({
   device_number: '',
-  status: '',
-  device_model: ''
+  status: ''
 })
 
 // deviceStats 现在是响应式数据，从后端获取

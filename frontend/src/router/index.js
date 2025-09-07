@@ -5,39 +5,7 @@ import { useUserStore } from '@/store/user'
 const routes = [
   {
     path: '/',
-    name: 'Home',
-    component: () => import('@/views/Home.vue'),
-    meta: {
-      title: '首页 - 福佑丝路',
-      requiresAuth: false
-    }
-  },
-  {
-    path: '/about',
-    name: 'About',
-    component: () => import('@/views/About.vue'),
-    meta: {
-      title: '关于我们 - 福佑丝路',
-      requiresAuth: false
-    }
-  },
-  {
-    path: '/products',
-    name: 'Products',
-    component: () => import('@/views/Products.vue'),
-    meta: {
-      title: '产品服务 - 福佑丝路',
-      requiresAuth: false
-    }
-  },
-  {
-    path: '/contact',
-    name: 'Contact',
-    component: () => import('@/views/Contact.vue'),
-    meta: {
-      title: '联系我们 - 福佑丝路',
-      requiresAuth: false
-    }
+    redirect: '/login'
   },
   {
     path: '/login',
@@ -54,6 +22,15 @@ const routes = [
     component: () => import('@/views/Register.vue'),
     meta: {
       title: '会员注册 - 福佑丝路',
+      requiresAuth: false
+    }
+  },
+  {
+    path: '/waybill/:id',
+    name: 'WaybillDetail',
+    component: () => import('@/views/WaybillDetail.vue'),
+    meta: {
+      title: '运单详情 - 福佑丝路',
       requiresAuth: false
     }
   },
@@ -171,8 +148,8 @@ router.beforeEach((to, from, next) => {
         next()
         return
       }
-      // 用户类型不匹配，跳转到首页
-      next('/')
+      // 用户类型不匹配，跳转到登录页
+      next('/login')
       return
     }
   }

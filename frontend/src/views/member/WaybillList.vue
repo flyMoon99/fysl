@@ -6,6 +6,9 @@
     <div class="search-bar">
       <el-form :inline="true" :model="searchForm" class="search-form">
         <el-form-item>
+          <el-button type="success" @click="showCreateDialog">新增运单</el-button>
+        </el-form-item>
+        <el-form-item>
           <el-input
             v-model="searchForm.waybill_number"
             placeholder="请输入运单号"
@@ -24,7 +27,7 @@
         <el-form-item>
           <el-button type="primary" @click="handleSearch">搜索</el-button>
           <el-button @click="resetSearch">重置</el-button>
-          <el-button type="success" @click="showCreateDialog">新增运单</el-button>
+          
         </el-form-item>
       </el-form>
     </div>
@@ -54,7 +57,7 @@
             <el-button-group size="small">
               <el-button
                 type="primary"
-                @click="showWaybillDetail(scope.row)"
+                @click="openWaybillDetail(scope.row)"
               >
                 详情
               </el-button>
@@ -147,7 +150,8 @@
     <el-dialog 
       v-model="showFormDialog" 
       :title="isEdit ? '编辑运单' : '新增运单'"
-      width="800px"
+      width="1200px"
+      @close="handleDialogClose"
     >
       <el-form
         ref="formRef"
@@ -167,8 +171,11 @@
           <el-input
             v-model="formData.waybill_remarks"
             type="textarea"
-            :rows="3"
-            placeholder="请输入运单备注"
+            :rows="4"
+            placeholder="请输入运单备注信息，可包含货物信息、运输要求、特殊说明等详细内容"
+            style="width: 100%"
+            maxlength="500"
+            show-word-limit
           />
         </el-form-item>
         
@@ -223,29 +230,46 @@
               <h4>选中设备运输信息</h4>
               <div v-for="deviceId in selectedDeviceIds" :key="deviceId" class="device-transport-info">
                 <el-card size="small" class="device-card">
-                  <template #header>
-                    <span>{{ getDeviceDisplayName(deviceId) }}</span>
-                  </template>
-                  <el-row :gutter="10">
-                    <el-col :span="12">
-                      <el-form-item label="车牌号" size="small">
-                        <el-input
-                          v-model="deviceTransportInfo[deviceId].license_plate"
-                          placeholder="请输入车牌号"
-                          size="small"
-                        />
-                      </el-form-item>
-                    </el-col>
-                    <el-col :span="12">
-                      <el-form-item label="运输备注" size="small">
-                        <el-input
-                          v-model="deviceTransportInfo[deviceId].transport_remarks"
-                          placeholder="请输入运输备注"
-                          size="small"
-                        />
-                      </el-form-item>
-                    </el-col>
-                  </el-row>
+                  <div class="device-transport-row">
+                    <div class="device-info">
+                      <div class="device-number">设备号：{{ getDeviceNumber(deviceId) }}</div>
+                      <div class="device-alias">{{ getDeviceAlias(deviceId) }}</div>
+                    </div>
+                    <div class="transport-inputs">
+                      <el-input
+                        v-model="deviceTransportInfo[deviceId].license_plate"
+                        placeholder="关联车牌号"
+                        size="small"
+                        class="license-input"
+                      />
+                      <el-input
+                        v-model="deviceTransportInfo[deviceId].transport_remarks"
+                        placeholder="输入运输备注信息等"
+                        size="small"
+                        class="remarks-input"
+                      />
+                    </div>
+                    <div class="device-actions">
+                      <el-button
+                        v-if="!isEdit"
+                        type="danger"
+                        size="small"
+                        @click="removeSelectedDevice(deviceId)"
+                        plain
+                      >
+                        取消
+                      </el-button>
+                      <el-button
+                        v-if="isEdit"
+                        type="danger"
+                        size="small"
+                        @click="removeDeviceFromWaybill(deviceId)"
+                        plain
+                      >
+                        删除
+                      </el-button>
+                    </div>
+                  </div>
                 </el-card>
               </div>
             </div>
@@ -380,18 +404,40 @@ const handlePageChange = (page) => {
   fetchWaybillList()
 }
 
-// 显示运单详情
+// 显示运单详情（弹窗方式，保留用于其他用途）
 const showWaybillDetail = (waybill) => {
   currentWaybill.value = waybill
   showDetailDialog.value = true
 }
 
+// 打开运单详情页（新窗口）
+const openWaybillDetail = (waybill) => {
+  const detailUrl = `/waybill/${waybill.id}`
+  window.open(detailUrl, '_blank')
+}
+
+// 处理对话框关闭
+const handleDialogClose = () => {
+  // 重置表单数据和状态
+  resetForm()
+  resetDeviceSelection()
+  currentWaybill.value = null
+  isEdit.value = false
+}
+
 // 显示创建对话框
 const showCreateDialog = () => {
   isEdit.value = false
+  currentWaybill.value = null
+  
+  // 确保表单数据完全重置
   resetForm()
   resetDeviceSelection()
-  showFormDialog.value = true
+  
+  // 延迟显示对话框，确保数据重置完成
+  setTimeout(() => {
+    showFormDialog.value = true
+  }, 50)
 }
 
 // 编辑运单
@@ -461,11 +507,21 @@ const deleteWaybill = async (waybill) => {
 
 // 重置表单
 const resetForm = () => {
+  // 先清除验证状态
+  if (formRef.value) {
+    formRef.value.clearValidate()
+  }
+  
+  // 直接设置属性值，确保重置
   formData.waybill_number = ''
   formData.waybill_remarks = ''
-  if (formRef.value) {
-    formRef.value.resetFields()
-  }
+  
+  // 使用nextTick确保DOM更新完成后再清除验证
+  setTimeout(() => {
+    if (formRef.value) {
+      formRef.value.clearValidate()
+    }
+  }, 50)
 }
 
 // 重置设备选择
@@ -530,6 +586,18 @@ const getDeviceDisplayName = (deviceId) => {
   return device ? `${device.device_number} ${device.device_alias ? '(' + device.device_alias + ')' : ''}` : `设备${deviceId}`
 }
 
+// 获取设备号
+const getDeviceNumber = (deviceId) => {
+  const device = availableDevices.value.find(d => d.id === deviceId)
+  return device ? device.device_number : `${deviceId}`
+}
+
+// 获取设备别名
+const getDeviceAlias = (deviceId) => {
+  const device = availableDevices.value.find(d => d.id === deviceId)
+  return device && device.device_alias ? `(${device.device_alias})` : ''
+}
+
 // 获取电量样式类
 const getBatteryClass = (batteryLevel) => {
   if (batteryLevel >= 50) return 'battery-high'
@@ -554,6 +622,65 @@ const getStatusText = (status) => {
     case 'offline': return '离线'
     case 'sleep': return '休眠'
     default: return '未知'
+  }
+}
+
+// 移除选中的设备（新增运单时）
+const removeSelectedDevice = (deviceId) => {
+  // 从选中列表中移除
+  const index = selectedDeviceIds.value.indexOf(deviceId)
+  if (index > -1) {
+    selectedDeviceIds.value.splice(index, 1)
+  }
+  
+  // 删除运输信息
+  delete deviceTransportInfo.value[deviceId]
+  
+  // 更新表格选择状态
+  if (deviceTableRef.value) {
+    const device = availableDevices.value.find(d => d.id === deviceId)
+    if (device) {
+      deviceTableRef.value.toggleRowSelection(device, false)
+    }
+  }
+}
+
+// 从运单中删除设备关联（编辑运单时）
+const removeDeviceFromWaybill = async (deviceId) => {
+  try {
+    await ElMessageBox.confirm(
+      '确定要删除该设备与运单的关联关系吗？',
+      '确认删除',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    
+    // 从选中列表中移除
+    const index = selectedDeviceIds.value.indexOf(deviceId)
+    if (index > -1) {
+      selectedDeviceIds.value.splice(index, 1)
+    }
+    
+    // 删除运输信息
+    delete deviceTransportInfo.value[deviceId]
+    
+    // 更新表格选择状态
+    if (deviceTableRef.value) {
+      const device = availableDevices.value.find(d => d.id === deviceId)
+      if (device) {
+        deviceTableRef.value.toggleRowSelection(device, false)
+      }
+    }
+    
+    ElMessage.success('已取消设备关联')
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除设备关联失败:', error)
+      ElMessage.error('操作失败')
+    }
   }
 }
 
@@ -640,6 +767,14 @@ onMounted(() => {
   margin: 0;
 }
 
+.search-form .el-form-item {
+  margin-right: 20px;
+}
+
+.search-form .el-form-item:last-child {
+  margin-right: 0;
+}
+
 /* 运单表格 */
 .waybill-table {
   background: white;
@@ -662,8 +797,9 @@ onMounted(() => {
 .device-selection-form {
   border: 1px solid #dcdfe6;
   border-radius: 4px;
-  padding: 15px;
+  padding: 20px;
   background: #fafafa;
+  width: 100%;
 }
 
 .device-selection-actions {
@@ -690,8 +826,9 @@ onMounted(() => {
 .selected-devices-info {
   background: white;
   border-radius: 4px;
-  padding: 15px;
+  padding: 20px;
   border: 1px solid #e4e7ed;
+  width: 100%;
 }
 
 .selected-devices-info h4 {
@@ -714,6 +851,67 @@ onMounted(() => {
 
 .device-card:last-child {
   margin-bottom: 0;
+}
+
+/* 设备运输信息一行布局 */
+.device-transport-row {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 15px 0;
+  min-height: 60px;
+}
+
+/* 设备信息区域 */
+.device-info {
+  min-width: 250px;
+  flex-shrink: 0;
+  padding-right: 15px;
+}
+
+.device-number {
+  font-weight: bold;
+  color: #303133;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.device-alias {
+  color: #909399;
+  font-size: 12px;
+}
+
+.transport-inputs {
+  display: flex;
+  gap: 10px;
+  flex: 1;
+}
+
+.license-input,
+.remarks-input {
+  flex: 1;
+}
+
+.license-input .el-input__inner,
+.remarks-input .el-input__inner {
+  height: 40px !important;
+  line-height: 40px !important;
+  padding: 0 15px !important;
+}
+
+.license-input .el-input,
+.remarks-input .el-input {
+  height: 40px !important;
+}
+
+.license-input .el-input__wrapper,
+.remarks-input .el-input__wrapper {
+  height: 40px !important;
+  min-height: 40px !important;
+}
+
+.device-actions {
+  flex-shrink: 0;
 }
 
 /* 电量显示样式 */

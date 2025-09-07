@@ -117,7 +117,10 @@ export const memberAPI = {
   getWaybillDetail: (waybillId) => api.get(`/member/waybills/${waybillId}`),
   createWaybill: (data) => api.post('/member/waybills', data),
   updateWaybill: (waybillId, data) => api.put(`/member/waybills/${waybillId}`, data),
-  deleteWaybill: (waybillId) => api.delete(`/member/waybills/${waybillId}`)
+  deleteWaybill: (waybillId) => api.delete(`/member/waybills/${waybillId}`),
+  
+  // 运单密码验证
+  verifyWaybillPassword: (waybillId, passwordData) => api.post(`/member/waybills/${waybillId}/verify-password`, passwordData)
 }
 
 export const authAPI = {
@@ -129,6 +132,18 @@ export const authAPI = {
   
   // 登出
   logout: () => api.post('/auth/logout')
+}
+
+// 公共API（无需登录）
+export const publicAPI = {
+  // 获取运单详情（公开访问）
+  getWaybillDetail: (waybillId) => api.get(`/public/waybills/${waybillId}`),
+  
+  // 验证运单查看密码
+  verifyWaybillPassword: (waybillId, passwordData) => api.post(`/public/waybills/${waybillId}/verify-password`, passwordData),
+  
+  // 获取设备轨迹点数据（公开访问）
+  getDeviceTrackPoints: (deviceId, params) => api.get(`/public/devices/${deviceId}/track-points`, { params })
 }
 
 export { api }

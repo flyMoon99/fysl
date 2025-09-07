@@ -1,4 +1,4 @@
-const { Waybill, TransportDetail, Device, Member } = require('../models');
+const { Waybill, TransportDetail, Device, Member, Location } = require('../models');
 const { Op } = require('sequelize');
 
 // 获取运单列表
@@ -372,10 +372,197 @@ const deleteWaybill = async (req, res) => {
   }
 };
 
+// 公开获取运单详情（无需登录，统一接口）
+const getPublicWaybillDetail = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const waybill = await Waybill.findByPk(id, {
+      include: [
+        {
+          model: TransportDetail,
+          as: 'transportDetails',
+          include: [
+            {
+              model: Device,
+              as: 'device',
+              required: false
+            }
+          ]
+        }
+      ]
+    });
+    
+    if (!waybill) {
+      return res.status(404).json({
+        error: '运单不存在',
+        code: 'WAYBILL_NOT_FOUND'
+      });
+    }
+    
+    // 检查是否需要密码验证
+    if (waybill.waybill_password) {
+      return res.status(403).json({
+        error: '需要密码验证',
+        code: 'PASSWORD_REQUIRED',
+        requiresPassword: true
+      });
+    }
+    
+    res.json({
+      message: '获取运单详情成功',
+      data: waybill
+    });
+  } catch (error) {
+    console.error('获取公开运单详情失败:', error);
+    res.status(500).json({
+      error: '获取运单详情失败',
+      code: 'GET_PUBLIC_WAYBILL_DETAIL_ERROR',
+      details: error.message
+    });
+  }
+};
+
+// 验证运单密码
+const verifyWaybillPassword = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { password } = req.body;
+    
+    const waybill = await Waybill.findByPk(id, {
+      include: [
+        {
+          model: TransportDetail,
+          as: 'transportDetails',
+          include: [
+            {
+              model: Device,
+              as: 'device',
+              required: false
+            }
+          ]
+        }
+      ]
+    });
+    
+    if (!waybill) {
+      return res.status(404).json({
+        error: '运单不存在',
+        code: 'WAYBILL_NOT_FOUND'
+      });
+    }
+    
+    if (waybill.waybill_password !== password) {
+      return res.status(401).json({
+        error: '密码错误',
+        code: 'INVALID_PASSWORD'
+      });
+    }
+    
+    res.json({
+      message: '密码验证成功',
+      data: waybill
+    });
+  } catch (error) {
+    console.error('验证运单密码失败:', error);
+    res.status(500).json({
+      error: '验证密码失败',
+      code: 'VERIFY_PASSWORD_ERROR',
+      details: error.message
+    });
+  }
+};
+
+// 公开获取设备轨迹点数据（无需登录）
+const getPublicDeviceTrackPoints = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { startTime, endTime, limit = 1000 } = req.query;
+
+    // 验证设备存在
+    const device = await Device.findByPk(id);
+    if (!device) {
+      return res.status(404).json({
+        error: '设备不存在',
+        code: 'DEVICE_NOT_FOUND'
+      });
+    }
+
+    // 验证时间参数
+    if (!startTime || !endTime) {
+      return res.status(400).json({
+        error: '开始时间和结束时间不能为空',
+        code: 'INVALID_TIME_RANGE'
+      });
+    }
+
+    // 验证时间跨度不超过7天
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    const diffDays = (end - start) / (1000 * 60 * 60 * 24);
+    
+    if (diffDays > 7) {
+      return res.status(400).json({
+        error: '查询时间跨度不能超过7天',
+        code: 'TIME_RANGE_TOO_LARGE'
+      });
+    }
+
+    // 查询轨迹点数据
+    const trackPoints = await Location.findAll({
+      where: {
+        device_id: id,
+        created_at: {
+          [Op.between]: [start, end]
+        }
+      },
+      attributes: [
+        'longitude',
+        'latitude',
+        'coordinate_system',
+        'address',
+        'created_at'
+      ],
+      order: [['created_at', 'ASC']],
+      limit: parseInt(limit)
+    });
+
+    // 转换数据格式
+    const formattedTrackPoints = trackPoints.map(point => ({
+      longitude: parseFloat(point.longitude),
+      latitude: parseFloat(point.latitude),
+      timestamp: point.created_at,
+      coordinateSystem: point.coordinate_system,
+      address: point.address || '地址未解析'
+    }));
+
+    res.json({
+      message: '获取设备轨迹点数据成功',
+      data: {
+        deviceId: id,
+        deviceNumber: device.device_number,
+        timeRange: { startTime, endTime },
+        trackPoints: formattedTrackPoints,
+        totalPoints: formattedTrackPoints.length
+      }
+    });
+  } catch (error) {
+    console.error('获取公开设备轨迹点数据错误:', error);
+    res.status(500).json({
+      error: '获取设备轨迹点数据失败',
+      code: 'GET_PUBLIC_DEVICE_TRACK_POINTS_ERROR',
+      details: error.message
+    });
+  }
+};
+
 module.exports = {
   getWaybills,
   getWaybillDetail,
   createWaybill,
   updateWaybill,
-  deleteWaybill
+  deleteWaybill,
+  getPublicWaybillDetail,
+  verifyWaybillPassword,
+  getPublicDeviceTrackPoints
 };
