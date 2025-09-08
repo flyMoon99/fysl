@@ -10,6 +10,9 @@ const { appConfig, isDevelopment } = require('../shared/config/app');
 const { testConnection } = require('../shared/config/database');
 const { initializeModels } = require('./src/models');
 
+// 设置应用时区
+process.env.TZ = appConfig.timezone;
+
 // 导入路由
 const authRoutes = require('./src/routes/auth');
 const adminRoutes = require('./src/routes/admin');

@@ -312,7 +312,16 @@ export class BaiduMapUtils {
           </span>
         </p>
         <p style="margin: 5px 0;"><strong>电量:</strong> ${device.battery_level || 0}%</p>
-        <p style="margin: 5px 0;"><strong>最后更新:</strong> ${device.last_update_time ? new Date(device.last_update_time).toLocaleString('zh-CN') : '暂无'}</p>
+        <p style="margin: 5px 0;"><strong>最后更新:</strong> ${device.last_update_time ? new Date(device.last_update_time).toLocaleString('zh-CN', {
+          timeZone: 'Asia/Shanghai',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false
+        }) : '暂无'}</p>
         <p style="margin: 5px 0;"><strong>地址:</strong> ${device.address || '地址解析中...'}</p>
       </div>
     `

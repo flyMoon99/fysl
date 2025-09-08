@@ -71,7 +71,16 @@ const rules = {
 // 格式化日期
 const formatDate = (dateString) => {
   if (!dateString) return '暂无数据'
-  return new Date(dateString).toLocaleString('zh-CN')
+  return new Date(dateString).toLocaleString('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  })
 }
 
 // 初始化表单数据

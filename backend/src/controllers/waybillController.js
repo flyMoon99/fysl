@@ -48,6 +48,15 @@ const getWaybills = async (req, res) => {
       waybill.transportDetails.some(detail => detail.device)
     );
     
+    // 时区转换：将UTC时间转换为中国标准时间
+    filteredWaybills.forEach(waybill => {
+      if (waybill.created_at) {
+        const utcTime = new Date(waybill.created_at);
+        const chinaTime = new Date(utcTime.getTime() + (8 * 60 * 60 * 1000));
+        waybill.created_at = chinaTime;
+      }
+    });
+    
     res.json({
       message: '获取运单列表成功',
       data: {
@@ -109,6 +118,13 @@ const getWaybillDetail = async (req, res) => {
       });
     }
     
+    // 时区转换：将UTC时间转换为中国标准时间
+    if (waybill.created_at) {
+      const utcTime = new Date(waybill.created_at);
+      const chinaTime = new Date(utcTime.getTime() + (8 * 60 * 60 * 1000));
+      waybill.created_at = chinaTime;
+    }
+    
     res.json({
       message: '获取运单详情成功',
       data: waybill
@@ -164,7 +180,8 @@ const createWaybill = async (req, res) => {
       waybill_number,
       waybill_remarks,
       create_by: req.member.username,
-      waybill_password
+      waybill_password,
+      created_at: new Date() // 手动设置创建时间
     });
     
     // 创建运输明细
@@ -199,6 +216,13 @@ const createWaybill = async (req, res) => {
         }
       ]
     });
+    
+    // 时区转换：将UTC时间转换为中国标准时间
+    if (createdWaybill && createdWaybill.created_at) {
+      const utcTime = new Date(createdWaybill.created_at);
+      const chinaTime = new Date(utcTime.getTime() + (8 * 60 * 60 * 1000));
+      createdWaybill.created_at = chinaTime;
+    }
     
     res.status(201).json({
       message: '创建运单成功',

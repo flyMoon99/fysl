@@ -42,7 +42,13 @@ const Waybill = sequelize.define('Waybill', {
   timestamps: true,
   createdAt: 'created_at',
   updatedAt: false, // 数据库表中没有updated_at字段
-  comment: '运单表'
+  comment: '运单表',
+  hooks: {
+    beforeCreate: (instance) => {
+      // 确保创建时间使用正确的时区
+      instance.created_at = new Date();
+    }
+  }
 });
 
 module.exports = Waybill;

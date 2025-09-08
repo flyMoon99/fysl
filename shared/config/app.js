@@ -6,6 +6,9 @@ const appConfig = {
   env: process.env.NODE_ENV || 'development',
   port: process.env.PORT || 3000,
   
+  // 时区配置
+  timezone: process.env.APP_TIMEZONE || 'Asia/Shanghai', // 应用时区设置为中国标准时间
+  
   // 前端配置
   frontend: {
     port: 8080,
