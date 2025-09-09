@@ -596,6 +596,16 @@ const getMemberDevices = async (req, res) => {
         'created_at',
         'updated_at'
       ],
+      include: [
+        {
+          model: Location,
+          as: 'locations',
+          attributes: ['address'],
+          required: false,
+          limit: 1,
+          order: [['created_at', 'DESC']]
+        }
+      ],
       order: [['id', 'DESC']], // 按设备ID倒序排列
       limit: parseInt(limit),
       offset: parseInt(offset)
@@ -625,6 +635,18 @@ const getMemberDevices = async (req, res) => {
     // 执行查询
     const { count, rows } = await Device.findAndCountAll(queryOptions);
 
+    // 处理返回数据，添加最后地址信息
+    const processedDevices = rows.map(device => {
+      const deviceData = device.toJSON();
+      // 从关联的locations中获取最新地址
+      deviceData.last_address = deviceData.locations && deviceData.locations.length > 0 
+        ? deviceData.locations[0].address 
+        : null;
+      // 删除locations数组，因为前端不需要
+      delete deviceData.locations;
+      return deviceData;
+    });
+
     // 获取用户全部设备的统计数据（不受分页和搜索条件影响）
     const statsWhere = { customer_id: memberId };
     const totalDevices = await Device.count({ where: statsWhere });
@@ -645,7 +667,7 @@ const getMemberDevices = async (req, res) => {
     res.json({
       message: '获取设备列表成功',
       data: {
-        devices: rows,
+        devices: processedDevices,
         pagination: {
           page: parseInt(page),
           limit: parseInt(limit),
@@ -840,6 +862,58 @@ const getMemberDeviceTrackPoints = async (req, res) => {
   }
 };
 
+// 更新设备信息
+const updateMemberDevice = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { device_alias, device_remarks } = req.body;
+    const memberId = req.member.id;
+
+    // 验证设备权限
+    const device = await Device.findOne({
+      where: {
+        id: id,
+        customer_id: memberId
+      }
+    });
+
+    if (!device) {
+      return res.status(404).json({
+        error: '设备不存在或无权限访问',
+        code: 'DEVICE_NOT_FOUND'
+      });
+    }
+
+    // 构建更新数据
+    const updateData = {};
+    if (device_alias !== undefined) updateData.device_alias = device_alias;
+    if (device_remarks !== undefined) updateData.device_remarks = device_remarks;
+
+    // 更新设备信息
+    await device.update(updateData);
+
+    res.json({
+      message: '设备信息更新成功',
+      data: {
+        device: {
+          id: device.id,
+          device_number: device.device_number,
+          device_alias: device.device_alias,
+          device_remarks: device.device_remarks,
+          updated_at: device.updated_at
+        }
+      }
+    });
+  } catch (error) {
+    console.error('更新设备信息错误:', error);
+    res.status(500).json({
+      error: '更新设备信息失败',
+      code: 'UPDATE_MEMBER_DEVICE_ERROR',
+      details: error.message
+    });
+  }
+};
+
 module.exports = {
   memberLogin,
   memberRegister,
@@ -855,5 +929,6 @@ module.exports = {
   getLoginHistory,
   getMemberDevices,
   getMemberDeviceMapData,
-  getMemberDeviceTrackPoints
+  getMemberDeviceTrackPoints,
+  updateMemberDevice
 };

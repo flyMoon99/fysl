@@ -149,9 +149,11 @@ class DeviceSyncService {
       syncResult.totalPoints = trackPoints.length;
 
       console.log(`[轨迹同步] 获取到 ${trackPoints.length} 个轨迹点，开始保存...`);
+      console.log(`[轨迹同步] 原始轨迹数据示例:`, trackPoints.slice(0, 3));
 
       // 转换轨迹数据
       const locationData = gpsApiClient.transformTrackData(device.id, trackPoints);
+      console.log(`[轨迹同步] 转换后的位置数据示例:`, locationData.slice(0, 3));
 
       // 批量处理轨迹点
       for (const locationPoint of locationData) {

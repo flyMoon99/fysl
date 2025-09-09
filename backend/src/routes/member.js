@@ -24,6 +24,9 @@ router.get('/devices/:id/track-points', authenticateMember, memberController.get
 // 获取会员设备详情（通用路由放在最后）
 router.get('/devices/:id', authenticateMember, memberController.getMemberDeviceDetail);
 
+// 更新会员设备信息
+router.put('/devices/:id', authenticateMember, memberController.updateMemberDevice);
+
 // 运单管理功能（需要会员认证）
 router.get('/waybills', authenticateMember, waybillController.getWaybills);
 router.get('/waybills/:id', authenticateMember, waybillController.getWaybillDetail);

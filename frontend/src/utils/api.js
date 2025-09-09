@@ -111,6 +111,7 @@ export const memberAPI = {
   getDeviceDetail: (deviceId) => api.get(`/member/devices/${deviceId}`),
   getDeviceMapData: (deviceId) => api.get(`/member/devices/${deviceId}/map-data`),
   getDeviceTrackPoints: (deviceId, params) => api.get(`/member/devices/${deviceId}/track-points`, { params }),
+  updateDevice: (deviceId, data) => api.put(`/member/devices/${deviceId}`, data),
   
   // 运单管理
   getWaybills: (params) => api.get('/member/waybills', { params }),

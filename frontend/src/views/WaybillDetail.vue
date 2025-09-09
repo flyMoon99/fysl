@@ -334,8 +334,11 @@ const loadWaybillDetail = async () => {
     // 统一使用公开API获取运单详情
     let response
     try {
+      console.log('正在获取运单详情，ID:', waybillId)
       response = await publicAPI.getWaybillDetail(waybillId)
+      console.log('运单详情API响应:', response.data)
     } catch (apiError) {
+      console.error('运单详情API调用失败:', apiError)
       // 如果是403错误且需要密码验证
       if (apiError.response?.status === 403 && apiError.response?.data?.requiresPassword) {
         showPasswordDialog.value = true
@@ -378,6 +381,9 @@ const loadWaybillDetail = async () => {
       
       waybillData.value = waybillInfo
       transportDetails.value = transportDetailsData
+      
+      console.log('处理后的运单数据:', waybillInfo)
+      console.log('处理后的运输明细:', transportDetailsData)
       
       // 检查访问权限
       if (!userStore.isLoggedIn && waybillInfo.waybill_password) {

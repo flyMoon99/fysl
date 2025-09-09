@@ -126,6 +126,10 @@ const initMap = async () => {
     loading.value = true
     loadError.value = ''
 
+    console.log('[地图组件] 开始初始化地图，容器ID:', mapId.value)
+    console.log('[地图组件] 地图中心点:', props.center)
+    console.log('[地图组件] 地图缩放级别:', props.zoom)
+
     await nextTick()
 
     const mapOptions = {
@@ -133,11 +137,18 @@ const initMap = async () => {
       zoom: props.zoom
     }
 
+    console.log('[地图组件] 调用mapUtils.initMap')
     mapInstance.value = await mapUtils.initMap(mapId.value, mapOptions)
+    console.log('[地图组件] 地图初始化成功:', mapInstance.value)
+    
+    // 将mapUtils实例附加到地图实例上
+    mapInstance.value.mapUtils = mapUtils
+    console.log('[地图组件] mapUtils已附加到地图实例')
 
     // 添加地图点击事件
     mapInstance.value.addEventListener('click', handleMapClick)
 
+    console.log('[地图组件] 触发mapReady事件')
     emit('mapReady', mapInstance.value)
   } catch (error) {
     console.error('[地图组件] 地图初始化失败:', error)

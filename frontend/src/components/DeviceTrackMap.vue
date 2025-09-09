@@ -1,18 +1,9 @@
 <template>
   <div class="device-track-map">
     <!-- 轨迹控制面板 -->
-    <div class="track-controls">
-      <div class="controls-header">
-        <h4>设备轨迹</h4>
-        <div class="device-info" v-if="deviceInfo">
-          <el-tag :type="deviceInfo.status === 'online' ? 'success' : 'danger'" size="small">
-            {{ deviceInfo.device_number }} - {{ deviceInfo.status === 'online' ? '在线' : '离线' }}
-          </el-tag>
-        </div>
-      </div>
-
+    <div class="track-controls" v-if="!props.hideTimeControls">
       <!-- 时间选择器 -->
-      <div class="time-selector">
+      <div class="time-selector" v-if="!props.hideTimeControls">
         <el-form :inline="true" size="small">
           <el-form-item label="查询时间:">
             <el-date-picker
@@ -43,7 +34,7 @@
       </div>
 
       <!-- 轨迹信息 -->
-      <div class="track-info" v-if="trackData.length > 0">
+      <div class="track-info" v-if="trackData.length > 0 && !props.hideTrackStats">
         <div class="info-item">
           <span class="label">轨迹点数:</span>
           <span class="value">{{ trackData.length }}</span>
@@ -59,7 +50,7 @@
       </div>
 
       <!-- 播放控制 -->
-      <div class="playback-controls" v-if="trackData.length > 0">
+      <div class="playback-controls" v-if="trackData.length > 0 && !props.hideTrackStats">
         <el-button-group size="small">
           <el-button 
             @click="togglePlayback"
@@ -159,6 +150,16 @@ const props = defineProps({
   autoLoad: {
     type: Boolean,
     default: false
+  },
+  // 是否隐藏时间控制
+  hideTimeControls: {
+    type: Boolean,
+    default: false
+  },
+  // 是否隐藏轨迹统计和播放控制
+  hideTrackStats: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -215,10 +216,25 @@ const timeShortcuts = [
   {
     text: '今天',
     value: () => {
-      const end = new Date()
-      const start = new Date()
-      start.setHours(0, 0, 0, 0)
-      return [start, end]
+      const now = new Date()
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0)
+      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
+      
+      return [
+        start.getFullYear() + '-' + 
+        String(start.getMonth() + 1).padStart(2, '0') + '-' + 
+        String(start.getDate()).padStart(2, '0') + ' ' +
+        String(start.getHours()).padStart(2, '0') + ':' +
+        String(start.getMinutes()).padStart(2, '0') + ':' +
+        String(start.getSeconds()).padStart(2, '0'),
+        
+        end.getFullYear() + '-' + 
+        String(end.getMonth() + 1).padStart(2, '0') + '-' + 
+        String(end.getDate()).padStart(2, '0') + ' ' +
+        String(end.getHours()).padStart(2, '0') + ':' +
+        String(end.getMinutes()).padStart(2, '0') + ':' +
+        String(end.getSeconds()).padStart(2, '0')
+      ]
     }
   },
   {
@@ -342,33 +358,62 @@ const loadTrackData = async () => {
     loadingTrack.value = true
     
     // 统一使用公开API获取轨迹数据
+    // 转换时间格式为ISO格式，确保正确处理时区
+    const startTime = new Date(timeRange.value[0] + '+08:00').toISOString()
+    const endTime = new Date(timeRange.value[1] + '+08:00').toISOString()
+    
+    console.log('轨迹查询参数:', {
+      deviceId: props.deviceId,
+      startTime: startTime,
+      endTime: endTime
+    })
+    
     const response = await publicAPI.getDeviceTrackPoints(props.deviceId, {
-      startTime: timeRange.value[0],
-      endTime: timeRange.value[1],
+      startTime: startTime,
+      endTime: endTime,
       limit: 1000
     })
     
+    console.log('轨迹查询响应:', response.data)
+    
     // 处理轨迹数据格式
     const trackPoints = response.data.data.trackPoints || []
+    console.log('原始轨迹点数据:', trackPoints)
+    console.log('轨迹点数量:', trackPoints.length)
+    
     trackData.value = trackPoints.map(point => ({
+      lng: point.longitude,
+      lat: point.latitude,
       longitude: point.longitude,
       latitude: point.latitude,
       timestamp: point.timestamp,
       coordinateSystem: point.coordinateSystem,
       address: point.address
     }))
+    
+    console.log('处理后的轨迹数据:', trackData.value)
+    console.log('处理后的轨迹点数量:', trackData.value.length)
+    
     currentPlayIndex.value = 0
     
     if (trackData.value.length > 0) {
+      console.log('开始绘制轨迹到地图')
       drawTrackOnMap()
       emit('trackLoaded', trackData.value)
       hasLoadedTrack.value = true // 标记已加载
       ElMessage.success(`成功加载 ${trackData.value.length} 个轨迹点`)
     } else {
+      console.log('没有轨迹数据，显示提示信息')
       ElMessage.info('该时间段内没有轨迹数据')
     }
   } catch (error) {
     console.error('加载轨迹数据失败:', error)
+    console.error('错误详情:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+      config: error.config
+    })
     
     // 如果API调用失败，使用模拟数据作为后备
     const mockTrackData = generateMockTrackData()
@@ -408,6 +453,8 @@ const generateMockTrackData = () => {
     
     points.push({
       timestamp,
+      lng: lng,
+      lat: lat,
       latitude: lat,
       longitude: lng,
       speed: Math.random() * 60 + 20, // 20-80 km/h
@@ -420,21 +467,30 @@ const generateMockTrackData = () => {
 
 // 在地图上绘制轨迹
 const drawTrackOnMap = () => {
+  console.log('开始绘制轨迹，轨迹数据:', trackData.value)
+  console.log('轨迹数据长度:', trackData.value.length)
+  
   const mapUtils = mapContainerRef.value?.mapUtils
+  console.log('地图工具实例:', mapUtils)
+  
   if (!mapUtils || !trackData.value.length) {
+    console.log('无法绘制轨迹:', { mapUtils: !!mapUtils, trackDataLength: trackData.value.length })
     return
   }
 
-  
+  console.log('清除之前的轨迹')
   // 清除之前的轨迹
   mapUtils.clearAll()
 
+  console.log('开始绘制轨迹线')
   // 绘制轨迹线
   trackPolyline.value = mapUtils.drawDeviceTrack(trackData.value, {
     color: '#3388ff',
     weight: 4,
     opacity: 0.8
   })
+  
+  console.log('轨迹线绘制结果:', trackPolyline.value)
 
   // 添加所有轨迹点标记（使用卡车图标）
   if (trackData.value.length > 0) {
@@ -531,6 +587,18 @@ const updatePlayMarker = () => {
 
 // 地图事件处理
 const handleMapReady = (mapInstance) => {
+  console.log('地图准备就绪，设备ID:', props.deviceId)
+  console.log('地图实例:', mapInstance)
+  console.log('autoLoad属性:', props.autoLoad)
+  console.log('时间范围:', timeRange.value)
+  console.log('是否已加载轨迹:', hasLoadedTrack.value)
+  
+  // 检查地图实例是否有mapUtils
+  if (mapInstance && mapInstance.mapUtils) {
+    console.log('地图工具实例存在:', mapInstance.mapUtils)
+  } else {
+    console.error('地图工具实例不存在!')
+  }
   
   // 如果有设备信息且有位置，设置地图中心
   if (props.deviceInfo && props.deviceInfo.last_longitude && props.deviceInfo.last_latitude) {
@@ -545,6 +613,12 @@ const handleMapReady = (mapInstance) => {
   if (props.autoLoad && timeRange.value.length === 2 && !hasLoadedTrack.value) {
     console.log('地图准备就绪，开始自动加载轨迹数据')
     loadTrackData()
+  } else {
+    console.log('不满足自动加载条件:', {
+      autoLoad: props.autoLoad,
+      timeRangeLength: timeRange.value.length,
+      hasLoadedTrack: hasLoadedTrack.value
+    })
   }
 }
 
@@ -553,14 +627,32 @@ const handleMapClick = (point) => {
 
 // 生命周期
 onMounted(() => {
-  // 设置默认时间范围为最近7天
-  const end = new Date()
-  const start = new Date()
-  start.setTime(start.getTime() - 7 * 24 * 3600 * 1000) // 7天前
+  console.log('DeviceTrackMap组件初始化，设备ID:', props.deviceId)
+  console.log('设备信息:', props.deviceInfo)
+  
+  // 设置默认时间范围为今天（使用本地时间，避免时区转换问题）
+  const now = new Date()
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0)
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
+  
+  // 直接使用本地时间字符串，不进行时区转换
   timeRange.value = [
-    start.toISOString().slice(0, 19).replace('T', ' '),
-    end.toISOString().slice(0, 19).replace('T', ' ')
+    start.getFullYear() + '-' + 
+    String(start.getMonth() + 1).padStart(2, '0') + '-' + 
+    String(start.getDate()).padStart(2, '0') + ' ' +
+    String(start.getHours()).padStart(2, '0') + ':' +
+    String(start.getMinutes()).padStart(2, '0') + ':' +
+    String(start.getSeconds()).padStart(2, '0'),
+    
+    end.getFullYear() + '-' + 
+    String(end.getMonth() + 1).padStart(2, '0') + '-' + 
+    String(end.getDate()).padStart(2, '0') + ' ' +
+    String(end.getHours()).padStart(2, '0') + ':' +
+    String(end.getMinutes()).padStart(2, '0') + ':' +
+    String(end.getSeconds()).padStart(2, '0')
   ]
+  
+  console.log('设置默认时间范围（今天）:', timeRange.value)
   
   // 注意：不在这里自动加载轨迹数据，避免重复加载
   // 轨迹数据将在 handleMapReady 中根据 autoLoad 属性决定是否加载
@@ -582,6 +674,77 @@ watch(() => props.deviceId, () => {
 // 暴露方法给父组件
 defineExpose({
   loadTrackData,
+  loadTrackDataWithTimeRange: async (startTime, endTime) => {
+    if (!startTime || !endTime) {
+      ElMessage.warning('请提供开始时间和结束时间')
+      return
+    }
+
+    try {
+      loadingTrack.value = true
+      
+      console.log('使用外部时间范围加载轨迹数据:', { 
+        deviceId: props.deviceId,
+        startTime, 
+        endTime 
+      })
+      
+      const response = await publicAPI.getDeviceTrackPoints(props.deviceId, {
+        startTime: startTime,
+        endTime: endTime,
+        limit: 1000
+      })
+      
+      console.log('API响应状态:', response.status)
+      console.log('API响应数据:', response.data)
+      
+      console.log('轨迹查询响应:', response.data)
+      
+      // 处理轨迹数据格式
+      const trackPoints = response.data.data.trackPoints || []
+      console.log('原始轨迹点数据:', trackPoints)
+      console.log('轨迹点数量:', trackPoints.length)
+      
+      trackData.value = trackPoints.map(point => ({
+        lng: point.longitude,
+        lat: point.latitude,
+        longitude: point.longitude,
+        latitude: point.latitude,
+        timestamp: point.timestamp,
+        coordinateSystem: point.coordinateSystem,
+        address: point.address
+      }))
+      
+      console.log('处理后的轨迹数据:', trackData.value)
+      console.log('处理后的轨迹点数量:', trackData.value.length)
+      
+      currentPlayIndex.value = 0
+      
+      if (trackData.value.length > 0) {
+        console.log('开始绘制轨迹到地图')
+        drawTrackOnMap()
+        emit('trackLoaded', trackData.value)
+        hasLoadedTrack.value = true
+        ElMessage.success(`成功加载 ${trackData.value.length} 个轨迹点`)
+      } else {
+        console.log('没有轨迹数据，显示提示信息')
+        ElMessage.info('该时间段内没有轨迹数据')
+      }
+    } catch (error) {
+      console.error('加载轨迹数据失败:', error)
+      console.error('错误详情:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        config: error.config
+      })
+      
+      ElMessage.error('加载轨迹数据失败')
+      emit('trackError', error)
+    } finally {
+      loadingTrack.value = false
+    }
+  },
   clearTrack: () => {
     trackData.value = []
     mapContainerRef.value?.mapUtils?.clearAll()

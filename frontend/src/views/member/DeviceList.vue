@@ -31,38 +31,6 @@
       </el-form>
     </div>
 
-    <!-- 设备统计卡片 -->
-    <div class="stats-cards" v-if="deviceStats">
-      <div class="stat-card">
-        <div class="stat-icon online">
-          <el-icon size="24"><Connection /></el-icon>
-        </div>
-        <div class="stat-content">
-          <h3>在线设备</h3>
-          <p>{{ deviceStats.online || 0 }} 个</p>
-        </div>
-      </div>
-      
-      <div class="stat-card">
-        <div class="stat-icon offline">
-          <el-icon size="24"><Close /></el-icon>
-        </div>
-        <div class="stat-content">
-          <h3>离线设备</h3>
-          <p>{{ deviceStats.offline || 0 }} 个</p>
-        </div>
-      </div>
-      
-      <div class="stat-card">
-        <div class="stat-icon total">
-          <el-icon size="24"><Position /></el-icon>
-        </div>
-        <div class="stat-content">
-          <h3>总设备数</h3>
-          <p>{{ deviceStats.total || 0 }} 个</p>
-        </div>
-      </div>
-    </div>
 
     <!-- 设备列表 -->
     <div class="device-table">
@@ -78,7 +46,7 @@
             {{ scope.row.device_remarks || '暂无' }}
           </template>
         </el-table-column>
-        <el-table-column prop="battery_level" label="电量" width="100">
+        <el-table-column prop="battery_level" label="电量" width="120">
           <template #default="scope">
             <div class="battery-level">
               <el-progress 
@@ -86,7 +54,6 @@
                 :color="getBatteryColor(scope.row.battery_level)"
                 :stroke-width="8"
               />
-              <span class="battery-text">{{ scope.row.battery_level || 0 }}%</span>
             </div>
           </template>
         </el-table-column>
@@ -104,7 +71,12 @@
             {{ formatDateTime(scope.row.last_update_time) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="220">
+        <el-table-column prop="last_address" label="最后地址" min-width="200">
+          <template #default="scope">
+            {{ scope.row.last_address || '暂无地址' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="280">
           <template #default="scope">
             <el-button-group size="small">
               <el-button
@@ -112,6 +84,13 @@
                 @click="showDeviceDetail(scope.row)"
               >
                 详情
+              </el-button>
+              <el-button
+                type="success"
+                @click="showEditDialogHandler(scope.row)"
+              >
+                <el-icon><Edit /></el-icon>
+                编辑
               </el-button>
               <el-button
                 type="warning"
@@ -196,20 +175,154 @@
     <!-- 设备轨迹对话框 -->
     <el-dialog
       v-model="showTrackDialog"
-      title="设备轨迹"
-      width="90%"
+      :title="getTrackDialogTitle()"
+      width="95%"
       :close-on-click-modal="false"
-      top="5vh"
+      top="3vh"
     >
       <div v-if="currentDevice" class="device-track-dialog">
+        <div class="track-layout">
+          <!-- 左侧轨迹列表 -->
+          <div class="track-list-panel">
+            <!-- 日期搜索 -->
+            <div class="date-search">
+              <el-form :inline="true" size="small">
+                <el-form-item label="开始日期:">
+                  <el-date-picker
+                    v-model="trackDateRange[0]"
+                    type="datetime"
+                    placeholder="开始日期"
+                    format="YYYY-MM-DD HH:mm:ss"
+                    value-format="YYYY-MM-DD HH:mm:ss"
+                    size="small"
+                  />
+                </el-form-item>
+                <el-form-item label="结束日期:">
+                  <el-date-picker
+                    v-model="trackDateRange[1]"
+                    type="datetime"
+                    placeholder="结束日期"
+                    format="YYYY-MM-DD HH:mm:ss"
+                    value-format="YYYY-MM-DD HH:mm:ss"
+                    size="small"
+                  />
+                </el-form-item>
+                <el-form-item>
+                  <el-button type="primary" size="small" @click="searchTrackData">
+                    搜索
+                  </el-button>
+                </el-form-item>
+              </el-form>
+            </div>
+
+            <!-- 轨迹点列表 -->
+            <div class="track-points-list">
+              <!-- 调试信息 -->
+              <div v-if="trackPoints.length === 0" class="debug-info">
+                <p>调试信息：</p>
+                <p>轨迹点数量: {{ trackPoints.length }}</p>
+                <p>过滤后轨迹点数量: {{ filteredTrackPoints.length }}</p>
+                <p>时间范围: {{ trackDateRange }}</p>
+                <p>当前设备: {{ currentDevice?.device_number }} (ID: {{ currentDevice?.id }})</p>
+                <p>时间跨度: {{ getTimeRangeDays() }} 天</p>
+              </div>
+              
+              <el-table
+                :data="filteredTrackPoints"
+                size="small"
+                height="500"
+                @row-click="selectTrackPoint"
+                highlight-current-row
+              >
+                <el-table-column prop="address" label="地址" min-width="300">
+                  <template #default="scope">
+                    {{ scope.row.address || '暂无地址' }}
+                  </template>
+                </el-table-column>
+                <el-table-column prop="timestamp" label="更新时间" width="180">
+                  <template #default="scope">
+                    {{ formatDateTime(scope.row.timestamp) }}
+                  </template>
+                </el-table-column>
+              </el-table>
+
+              <!-- 分页 -->
+              <el-pagination
+                v-if="trackPointsTotal > 0"
+                background
+                layout="prev, pager, next, jumper, total"
+                :current-page="trackPointsPage"
+                :page-size="trackPointsPageSize"
+                :total="trackPointsTotal"
+                @current-change="handleTrackPointsPageChange"
+                size="small"
+                style="margin-top: 10px; text-align: center"
+              />
+            </div>
+          </div>
+
+          <!-- 右侧地图 -->
+          <div class="map-panel">
         <DeviceTrackMap
+              ref="trackMapRef"
           :device-id="currentDevice.id"
           :device-info="currentDevice"
-          map-height="600px"
+              map-height="100%"
+              :auto-load="false"
+              :hide-time-controls="true"
+              :hide-track-stats="true"
           @trackLoaded="handleTrackLoaded"
           @trackError="handleTrackError"
         />
       </div>
+        </div>
+      </div>
+    </el-dialog>
+
+    <!-- 设备编辑对话框 -->
+    <el-dialog
+      v-model="showEditDialog"
+      title="编辑设备信息"
+      width="500px"
+      :close-on-click-modal="false"
+    >
+      <el-form
+        ref="editFormRef"
+        :model="editForm"
+        :rules="editRules"
+        label-width="100px"
+      >
+        <el-form-item label="设备号">
+          <el-input v-model="editForm.device_number" disabled />
+        </el-form-item>
+        <el-form-item label="设备别名" prop="device_alias">
+          <el-input
+            v-model="editForm.device_alias"
+            placeholder="请输入设备别名"
+            maxlength="50"
+            show-word-limit
+          />
+        </el-form-item>
+        <el-form-item label="设备备注" prop="device_remarks">
+          <el-input
+            v-model="editForm.device_remarks"
+            type="textarea"
+            placeholder="请输入设备备注"
+            :rows="4"
+            maxlength="200"
+            show-word-limit
+          />
+        </el-form-item>
+      </el-form>
+      
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="showEditDialog = false">取消</el-button>
+          <el-button type="primary" @click="handleSaveEdit" :loading="editLoading">
+            保存
+          </el-button>
+        </span>
+      </template>
     </el-dialog>
   </div>
 </template>
@@ -218,18 +331,30 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import { memberAPI } from '@/utils/api'
 import { ElMessage } from 'element-plus'
-import { Connection, Close, Operation } from '@element-plus/icons-vue'
+import { Operation, Edit } from '@element-plus/icons-vue'
 import DeviceTrackMap from '@/components/DeviceTrackMap.vue'
 
 const loading = ref(false)
 const showDetailDialog = ref(false)
 const showTrackDialog = ref(false)
+const showEditDialog = ref(false)
+const editLoading = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
 const deviceList = ref([])
 const currentDevice = ref(null)
-const deviceStats = ref(null)
+const editFormRef = ref(null)
+const trackMapRef = ref(null)
+
+// 轨迹相关数据
+const trackDateRange = ref([])
+const trackPoints = ref([])
+const filteredTrackPoints = ref([])
+const trackPointsPage = ref(1)
+const trackPointsPageSize = ref(10)
+const trackPointsTotal = ref(0)
+const selectedTrackPoint = ref(null)
 
 // 搜索表单
 const searchForm = reactive({
@@ -237,7 +362,23 @@ const searchForm = reactive({
   status: ''
 })
 
-// deviceStats 现在是响应式数据，从后端获取
+// 编辑表单
+const editForm = reactive({
+  device_number: '',
+  device_alias: '',
+  device_remarks: ''
+})
+
+// 编辑表单验证规则
+const editRules = {
+  device_alias: [
+    { max: 50, message: '设备别名不能超过50个字符', trigger: 'blur' }
+  ],
+  device_remarks: [
+    { max: 200, message: '设备备注不能超过200个字符', trigger: 'blur' }
+  ]
+}
+
 
 // 格式化日期时间
 const formatDateTime = (dateString) => {
@@ -283,8 +424,6 @@ const fetchDeviceList = async () => {
     if (response.data.message) {
       deviceList.value = response.data.data.devices
       total.value = response.data.data.pagination.total
-      // 更新设备统计数据
-      deviceStats.value = response.data.data.stats
     }
   } catch (error) {
     console.error('获取设备列表失败:', error)
@@ -324,20 +463,256 @@ const showDeviceDetail = (device) => {
 
 // 显示设备轨迹
 const showDeviceTrack = (device) => {
+  console.log('显示设备轨迹，设备信息:', device)
   currentDevice.value = device
   showTrackDialog.value = true
+  
+  // 清空之前的轨迹数据
+  trackPoints.value = []
+  filteredTrackPoints.value = []
+  trackPointsTotal.value = 0
+  trackPointsPage.value = 1
+  
+  // 设置默认时间范围为最近7天
+  const end = new Date()
+  const start = new Date()
+  start.setTime(start.getTime() - 7 * 24 * 60 * 60 * 1000)
+  
+  trackDateRange.value = [
+    start.getFullYear() + '-' + 
+    String(start.getMonth() + 1).padStart(2, '0') + '-' + 
+    String(start.getDate()).padStart(2, '0') + ' ' +
+    String(start.getHours()).padStart(2, '0') + ':' +
+    String(start.getMinutes()).padStart(2, '0') + ':' +
+    String(start.getSeconds()).padStart(2, '0'),
+    
+    end.getFullYear() + '-' + 
+    String(end.getMonth() + 1).padStart(2, '0') + '-' + 
+    String(end.getDate()).padStart(2, '0') + ' ' +
+    String(end.getHours()).padStart(2, '0') + ':' +
+    String(end.getMinutes()).padStart(2, '0') + ':' +
+    String(end.getSeconds()).padStart(2, '0')
+  ]
+  
+  console.log('设置时间范围:', trackDateRange.value)
+  
+  // 等待对话框完全打开后再加载轨迹数据
+  setTimeout(() => {
+    console.log('开始自动加载轨迹数据')
+    searchTrackData()
+  }, 500)
+}
+
+// 显示编辑对话框
+const showEditDialogHandler = (device) => {
+  currentDevice.value = device
+  // 填充编辑表单
+  editForm.device_number = device.device_number
+  editForm.device_alias = device.device_alias || ''
+  editForm.device_remarks = device.device_remarks || ''
+  showEditDialog.value = true
+}
+
+// 保存编辑
+const handleSaveEdit = async () => {
+  if (!editFormRef.value) return
+  
+  try {
+    // 验证表单
+    await editFormRef.value.validate()
+    
+    editLoading.value = true
+    
+    // 调用API更新设备信息
+    const response = await memberAPI.updateDevice(currentDevice.value.id, {
+      device_alias: editForm.device_alias,
+      device_remarks: editForm.device_remarks
+    })
+    
+    if (response.data.message) {
+      ElMessage.success('设备信息更新成功')
+      
+      // 更新本地设备列表中的数据
+      const deviceIndex = deviceList.value.findIndex(device => device.id === currentDevice.value.id)
+      if (deviceIndex !== -1) {
+        deviceList.value[deviceIndex].device_alias = editForm.device_alias
+        deviceList.value[deviceIndex].device_remarks = editForm.device_remarks
+      }
+      
+      // 关闭对话框
+      showEditDialog.value = false
+    }
+  } catch (error) {
+    console.error('更新设备信息失败:', error)
+    if (error.response?.data?.error) {
+      ElMessage.error(error.response.data.error)
+    } else {
+      ElMessage.error('更新设备信息失败')
+    }
+  } finally {
+    editLoading.value = false
+  }
 }
 
 
+// 搜索轨迹数据
+const searchTrackData = async () => {
+  if (!trackDateRange.value || trackDateRange.value.length !== 2) {
+    ElMessage.warning('请选择查询时间范围')
+    return
+  }
+
+  try {
+    console.log('开始搜索轨迹数据，时间范围:', trackDateRange.value)
+    
+    // 调用地图组件的加载轨迹数据方法
+    if (trackMapRef.value) {
+      // 转换时间格式为ISO格式
+      const startTime = new Date(trackDateRange.value[0] + '+08:00').toISOString()
+      const endTime = new Date(trackDateRange.value[1] + '+08:00').toISOString()
+      
+      console.log('转换后的时间范围:', { startTime, endTime })
+      
+      // 使用新的方法加载轨迹数据
+      await trackMapRef.value.loadTrackDataWithTimeRange(startTime, endTime)
+    } else {
+      console.error('地图组件引用不存在')
+      ElMessage.error('地图组件未初始化')
+    }
+  } catch (error) {
+    console.error('搜索轨迹数据失败:', error)
+    ElMessage.error('搜索轨迹数据失败')
+  }
+}
+
+// 选择轨迹点
+const selectTrackPoint = (row) => {
+  selectedTrackPoint.value = row
+  console.log('选择轨迹点:', row)
+  
+  // 在地图上高亮显示选中的轨迹点
+  if (trackMapRef.value && trackMapRef.value.mapContainerRef) {
+    const mapUtils = trackMapRef.value.mapContainerRef.mapUtils
+    if (mapUtils) {
+      // 设置地图中心到选中的点
+      mapUtils.setCenter({
+        lng: row.longitude,
+        lat: row.latitude
+      }, 15)
+    }
+  }
+}
+
+
+// 轨迹点分页变化
+const handleTrackPointsPageChange = (page) => {
+  trackPointsPage.value = page
+  updateFilteredTrackPoints()
+}
+
+// 格式化停留时长
+const formatDuration = (duration) => {
+  if (!duration) return '0分钟'
+  
+  const totalMinutes = Math.floor(duration / (1000 * 60))
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  
+  if (hours > 0) {
+    return `${hours}小时${minutes}分钟`
+  }
+  return `${minutes}分钟`
+}
+
 // 轨迹加载完成
 const handleTrackLoaded = (trackData) => {
-  ElMessage.success(`成功加载 ${trackData.length} 个轨迹点`)
+  console.log('轨迹数据加载完成:', trackData)
+  
+  // 生成停留点数据
+  generateStopPoints(trackData)
+}
+
+// 处理轨迹点数据
+const generateStopPoints = (trackData) => {
+  console.log('开始处理轨迹点数据，原始轨迹数据:', trackData)
+  
+  if (!trackData || trackData.length === 0) {
+    console.log('没有轨迹数据，清空轨迹点列表')
+    trackPoints.value = []
+    filteredTrackPoints.value = []
+    trackPointsTotal.value = 0
+    return
+  }
+
+  const processedPoints = []
+  
+  // 直接使用轨迹点数据，按时间倒序排列
+  trackData.forEach((point, index) => {
+    processedPoints.push({
+      id: index + 1,
+      timestamp: point.timestamp,
+      longitude: point.longitude || point.lng,
+      latitude: point.latitude || point.lat,
+      address: point.address || '地址未解析'
+    })
+  })
+  
+  // 按时间倒序排列（最新的在前）
+  processedPoints.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+  
+  console.log('处理后的轨迹点数据:', processedPoints)
+  
+  trackPoints.value = processedPoints
+  trackPointsTotal.value = processedPoints.length
+  
+  // 重置到第一页并更新显示数据
+  trackPointsPage.value = 1
+  updateFilteredTrackPoints()
+  
+  console.log('轨迹点数据已更新到响应式变量')
+}
+
+// 更新过滤后的轨迹点数据（实现分页）
+const updateFilteredTrackPoints = () => {
+  if (!trackPoints.value || trackPoints.value.length === 0) {
+    filteredTrackPoints.value = []
+    return
+  }
+  
+  const startIndex = (trackPointsPage.value - 1) * trackPointsPageSize.value
+  const endIndex = startIndex + trackPointsPageSize.value
+  
+  filteredTrackPoints.value = trackPoints.value.slice(startIndex, endIndex)
+  
+  console.log(`分页显示: 第${trackPointsPage.value}页, 显示${filteredTrackPoints.value.length}条数据`)
 }
 
 // 轨迹加载错误
 const handleTrackError = (error) => {
   console.error('[设备列表] 轨迹加载失败:', error)
   ElMessage.error('轨迹加载失败，请稍后重试')
+}
+
+// 获取轨迹对话框标题
+const getTrackDialogTitle = () => {
+  if (!currentDevice.value) return '设备轨迹'
+  
+  const deviceNumber = currentDevice.value.device_number || '未知设备'
+  const status = currentDevice.value.status === 'online' ? '在线' : '离线'
+  
+  return `${deviceNumber}-${status}-设备轨迹`
+}
+
+// 计算时间跨度（天）
+const getTimeRangeDays = () => {
+  if (!trackDateRange.value || trackDateRange.value.length !== 2) return 0
+  
+  const start = new Date(trackDateRange.value[0])
+  const end = new Date(trackDateRange.value[1])
+  const diffTime = end - start
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  
+  return diffDays
 }
 
 onMounted(() => {
@@ -370,65 +745,6 @@ onMounted(() => {
   margin: 0;
 }
 
-/* 统计卡片 */
-.stats-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 20px;
-  margin-bottom: 20px;
-}
-
-.stat-card {
-  background: white;
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  transition: transform 0.3s ease;
-}
-
-.stat-card:hover {
-  transform: translateY(-2px);
-}
-
-.stat-icon {
-  border-radius: 12px;
-  padding: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.stat-icon.online {
-  background: #f0f9ff;
-  color: #67c23a;
-}
-
-.stat-icon.offline {
-  background: #fef0f0;
-  color: #f56c6c;
-}
-
-.stat-icon.total {
-  background: #f4f4f5;
-  color: #409eff;
-}
-
-.stat-content h3 {
-  font-size: 14px;
-  color: #909399;
-  margin: 0 0 8px 0;
-  font-weight: normal;
-}
-
-.stat-content p {
-  font-size: 20px;
-  font-weight: bold;
-  color: #303133;
-  margin: 0;
-}
 
 /* 设备表格 */
 .device-table {
@@ -473,18 +789,75 @@ onMounted(() => {
   .search-form .el-select {
     width: 100% !important;
   }
-
-  .stats-cards {
-    grid-template-columns: 1fr;
-  }
-
-  .stat-card {
-    padding: 15px;
-  }
 }
 
 
 .device-track-dialog {
-  padding: 10px 0;
+  padding: 0;
+  height: 80vh;
+}
+
+.track-layout {
+  display: flex;
+  height: 100%;
+  gap: 20px;
+}
+
+.track-list-panel {
+  width: 400px;
+  background: white;
+  border-radius: 8px;
+  padding: 15px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  overflow-y: auto;
+}
+
+.map-panel {
+  flex: 1;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.date-search {
+  margin-bottom: 15px;
+  padding: 10px;
+  background: #f5f7fa;
+  border-radius: 6px;
+}
+
+.track-points-list {
+  flex: 1;
+}
+
+.debug-info {
+  background: #f0f9ff;
+  border: 1px solid #b3d8ff;
+  border-radius: 4px;
+  padding: 10px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: #409eff;
+}
+
+.debug-info p {
+  margin: 2px 0;
+}
+
+/* 响应式设计 */
+@media (max-width: 1200px) {
+  .track-layout {
+    flex-direction: column;
+  }
+  
+  .track-list-panel {
+    width: 100%;
+    height: 300px;
+  }
+  
+  .map-panel {
+    height: 400px;
+  }
 }
 </style>

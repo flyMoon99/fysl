@@ -53,7 +53,8 @@ const sequelize = new Sequelize(
       // 自定义时间戳处理
       hooks: {
         beforeCreate: (instance) => {
-          if (instance.created_at) {
+          // 只有在没有提供 created_at 时才设置为当前时间
+          if (!instance.created_at) {
             instance.created_at = new Date();
           }
         }

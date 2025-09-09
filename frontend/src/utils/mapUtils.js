@@ -123,18 +123,26 @@ export class BaiduMapUtils {
    */
   loadBaiduMapAPI() {
     return new Promise((resolve, reject) => {
+      console.log('[百度地图] 检查API是否已加载')
       if (window.BMap) {
+        console.log('[百度地图] API已存在，直接使用')
         this.BMap = window.BMap
         resolve(window.BMap)
         return
       }
 
+      console.log('[百度地图] 开始加载API')
       const script = document.createElement('script')
       script.type = 'text/javascript'
       script.src = `https://api.map.baidu.com/api?v=${MAP_CONFIG.version}&ak=${MAP_CONFIG.apiKey}&callback=initBaiduMap`
-      script.onerror = reject
+      script.onerror = (error) => {
+        console.error('[百度地图] API加载失败:', error)
+        reject(error)
+      }
       
       window.initBaiduMap = () => {
+        console.log('[百度地图] API加载成功')
+        console.log('[百度地图] BMap对象:', window.BMap)
         this.BMap = window.BMap
         resolve(window.BMap)
       }
@@ -151,7 +159,9 @@ export class BaiduMapUtils {
    */
   async initMap(containerId, options = {}) {
     try {
+      console.log('[百度地图] 开始初始化地图，容器ID:', containerId)
       await this.loadBaiduMapAPI()
+      console.log('[百度地图] API加载完成')
       
       const mapOptions = {
         center: options.center || MAP_CONFIG.defaultCenter,
@@ -160,7 +170,9 @@ export class BaiduMapUtils {
         ...options
       }
 
+      console.log('[百度地图] 地图配置:', mapOptions)
       this.map = new this.BMap.Map(containerId)
+      console.log('[百度地图] 地图实例创建成功:', this.map)
       
       // 设置地图中心点和缩放级别
       const point = new this.BMap.Point(mapOptions.center.lng, mapOptions.center.lat)
@@ -183,6 +195,7 @@ export class BaiduMapUtils {
       // 添加地图控件
       this.addMapControls()
 
+      console.log('[百度地图] 地图初始化完成，返回地图实例:', this.map)
       return this.map
     } catch (error) {
       console.error('[百度地图] 初始化失败:', error)
@@ -340,10 +353,15 @@ export class BaiduMapUtils {
    * @returns {Object} 轨迹线对象
    */
   drawDeviceTrack(trackPoints, options = {}) {
-    if (!this.map || !this.BMap || !trackPoints.length) return null
+    console.log('绘制轨迹，轨迹点数量:', trackPoints.length)
+    
+    if (!this.map || !this.BMap || !trackPoints.length) {
+      console.log('无法绘制轨迹，条件不满足:', { map: !!this.map, BMap: !!this.BMap, trackPointsLength: trackPoints.length })
+      return null
+    }
 
     // 转换坐标并创建轨迹点
-    const points = trackPoints.map(point => {
+    const points = trackPoints.map((point, index) => {
       const bdCoords = CoordinateConverter.wgs84ToBd09(point.lng, point.lat)
       return new this.BMap.Point(bdCoords.lng, bdCoords.lat)
     })

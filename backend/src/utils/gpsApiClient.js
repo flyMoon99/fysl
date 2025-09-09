@@ -268,28 +268,43 @@ class GPSApiClient {
    */
   transformTrackData(deviceId, trackPoints) {
     if (!trackPoints || !Array.isArray(trackPoints)) {
+      console.log('[GPS API] 轨迹数据为空或不是数组');
       return [];
     }
 
-    return trackPoints.map(point => {
+    console.log(`[GPS API] 开始转换轨迹数据，共 ${trackPoints.length} 个点`);
+    console.log(`[GPS API] 第一个轨迹点示例:`, trackPoints[0]);
+
+    return trackPoints.map((point, index) => {
       const [timestamp, lat, lng] = point;
       
-      // 修复时间戳转换问题
+      console.log(`[GPS API] 处理第 ${index + 1} 个轨迹点:`, {
+        timestamp: timestamp,
+        timestampType: typeof timestamp,
+        lat: lat,
+        lng: lng
+      });
+      
+      // 正确处理时间戳，不进行额外的时区转换
       let dateObj;
       if (typeof timestamp === 'number') {
         // 如果是数字时间戳，需要判断是秒还是毫秒
         if (timestamp > 9999999999) {
           // 13位数字，毫秒时间戳
           dateObj = new Date(timestamp);
+          console.log(`[GPS API] 毫秒时间戳: ${timestamp} -> ${dateObj.toISOString()}`);
         } else {
           // 10位数字，秒时间戳
           dateObj = new Date(timestamp * 1000);
+          console.log(`[GPS API] 秒时间戳: ${timestamp} -> ${dateObj.toISOString()}`);
         }
       } else if (typeof timestamp === 'string') {
         // 如果是字符串，直接解析
         dateObj = new Date(timestamp);
+        console.log(`[GPS API] 字符串时间戳: ${timestamp} -> ${dateObj.toISOString()}`);
       } else {
         // 其他情况使用当前时间
+        console.warn(`[GPS API] 未知时间戳类型: ${typeof timestamp}, 值: ${timestamp}, 使用当前时间`);
         dateObj = new Date();
       }
       
@@ -299,13 +314,17 @@ class GPSApiClient {
         dateObj = new Date();
       }
       
-      return {
+      const result = {
         device_id: deviceId,
         longitude: parseFloat(lng),
         latitude: parseFloat(lat),
         coordinate_system: 'WGS-84', // API返回的是WGS84坐标系
         created_at: dateObj
       };
+      
+      console.log(`[GPS API] 转换结果:`, result);
+      
+      return result;
     });
   }
 }
