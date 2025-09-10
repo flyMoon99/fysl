@@ -118,6 +118,42 @@ const getWaybillDetail = async (req, res) => {
       });
     }
     
+    // 为每个运输明细更新设备的最新位置信息
+    for (const detail of waybill.transportDetails) {
+      if (detail.device) {
+        // 从gps_devices表获取设备的最新位置信息
+        const latestDevice = await Device.findByPk(detail.device.id);
+        if (latestDevice) {
+          // 更新设备信息为最新数据
+          detail.device.last_longitude = latestDevice.last_longitude;
+          detail.device.last_latitude = latestDevice.last_latitude;
+          detail.device.last_update_time = latestDevice.last_update_time;
+          detail.device.status = latestDevice.status;
+          detail.device.battery_level = latestDevice.battery_level;
+          
+          // 获取最新位置的地址信息
+          if (latestDevice.last_longitude && latestDevice.last_latitude) {
+            const latestLocation = await Location.findOne({
+              where: {
+                device_id: detail.device.id,
+                longitude: latestDevice.last_longitude,
+                latitude: latestDevice.last_latitude
+              },
+              order: [['created_at', 'DESC']]
+            });
+            
+            if (latestLocation && latestLocation.address) {
+              detail.address = latestLocation.address;
+            } else {
+              detail.address = '地址解析中...';
+            }
+          } else {
+            detail.address = '暂无位置信息';
+          }
+        }
+      }
+    }
+    
     // 时区转换：将UTC时间转换为中国标准时间
     if (waybill.created_at) {
       const utcTime = new Date(waybill.created_at);
@@ -433,6 +469,42 @@ const getPublicWaybillDetail = async (req, res) => {
       });
     }
     
+    // 为每个运输明细更新设备的最新位置信息
+    for (const detail of waybill.transportDetails) {
+      if (detail.device) {
+        // 从gps_devices表获取设备的最新位置信息
+        const latestDevice = await Device.findByPk(detail.device.id);
+        if (latestDevice) {
+          // 更新设备信息为最新数据
+          detail.device.last_longitude = latestDevice.last_longitude;
+          detail.device.last_latitude = latestDevice.last_latitude;
+          detail.device.last_update_time = latestDevice.last_update_time;
+          detail.device.status = latestDevice.status;
+          detail.device.battery_level = latestDevice.battery_level;
+          
+          // 获取最新位置的地址信息
+          if (latestDevice.last_longitude && latestDevice.last_latitude) {
+            const latestLocation = await Location.findOne({
+              where: {
+                device_id: detail.device.id,
+                longitude: latestDevice.last_longitude,
+                latitude: latestDevice.last_latitude
+              },
+              order: [['created_at', 'DESC']]
+            });
+            
+            if (latestLocation && latestLocation.address) {
+              detail.address = latestLocation.address;
+            } else {
+              detail.address = '地址解析中...';
+            }
+          } else {
+            detail.address = '暂无位置信息';
+          }
+        }
+      }
+    }
+    
     res.json({
       message: '获取运单详情成功',
       data: waybill
@@ -481,6 +553,42 @@ const verifyWaybillPassword = async (req, res) => {
         error: '密码错误',
         code: 'INVALID_PASSWORD'
       });
+    }
+    
+    // 为每个运输明细更新设备的最新位置信息
+    for (const detail of waybill.transportDetails) {
+      if (detail.device) {
+        // 从gps_devices表获取设备的最新位置信息
+        const latestDevice = await Device.findByPk(detail.device.id);
+        if (latestDevice) {
+          // 更新设备信息为最新数据
+          detail.device.last_longitude = latestDevice.last_longitude;
+          detail.device.last_latitude = latestDevice.last_latitude;
+          detail.device.last_update_time = latestDevice.last_update_time;
+          detail.device.status = latestDevice.status;
+          detail.device.battery_level = latestDevice.battery_level;
+          
+          // 获取最新位置的地址信息
+          if (latestDevice.last_longitude && latestDevice.last_latitude) {
+            const latestLocation = await Location.findOne({
+              where: {
+                device_id: detail.device.id,
+                longitude: latestDevice.last_longitude,
+                latitude: latestDevice.last_latitude
+              },
+              order: [['created_at', 'DESC']]
+            });
+            
+            if (latestLocation && latestLocation.address) {
+              detail.address = latestLocation.address;
+            } else {
+              detail.address = '地址解析中...';
+            }
+          } else {
+            detail.address = '暂无位置信息';
+          }
+        }
+      }
     }
     
     res.json({

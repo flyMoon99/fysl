@@ -761,6 +761,123 @@ const getMultipleDevicesMapData = async (req, res) => {
   }
 };
 
+// 根据设备号获取设备信息（公开访问）
+const getDeviceByNumber = async (req, res) => {
+  try {
+    const { deviceNumber } = req.params;
+    
+    // 根据设备号查找设备
+    const device = await Device.findByDeviceNumber(deviceNumber);
+    
+    if (!device) {
+      return res.status(404).json({
+        error: '设备不存在',
+        code: 'DEVICE_NOT_FOUND'
+      });
+    }
+    
+    // 返回设备基本信息（不包含敏感信息）
+    res.json({
+      message: '获取设备信息成功',
+      data: {
+        id: device.id,
+        device_number: device.device_number,
+        device_alias: device.device_alias,
+        device_remarks: device.device_remarks,
+        status: device.status,
+        device_model: device.device_model,
+        battery_level: device.battery_level,
+        last_update_time: device.last_update_time,
+        last_longitude: device.last_longitude,
+        last_latitude: device.last_latitude,
+        created_at: device.created_at
+      }
+    });
+  } catch (error) {
+    console.error('根据设备号获取设备信息错误:', error);
+    res.status(500).json({
+      error: '获取设备信息失败',
+      code: 'GET_DEVICE_BY_NUMBER_ERROR'
+    });
+  }
+};
+
+// 获取设备位置历史记录（公开访问）
+const getPublicDeviceLocationHistory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { page = 1, limit = 50, startTime, endTime } = req.query;
+    
+    // 验证设备存在
+    const device = await Device.findByPk(id);
+    if (!device) {
+      return res.status(404).json({
+        error: '设备不存在',
+        code: 'DEVICE_NOT_FOUND'
+      });
+    }
+    
+    const offset = (page - 1) * limit;
+    
+    // 构建查询条件
+    const where = { device_id: id };
+    
+    // 时间范围筛选
+    if (startTime && endTime) {
+      where.created_at = {
+        [Op.between]: [new Date(startTime), new Date(endTime)]
+      };
+    }
+    
+    // 查询位置历史记录
+    const { count, rows: locations } = await Location.findAndCountAll({
+      where,
+      attributes: [
+        'id',
+        'longitude',
+        'latitude',
+        'coordinate_system',
+        'address',
+        'created_at'
+      ],
+      order: [['created_at', 'DESC']],
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+    
+    // 格式化数据
+    const formattedLocations = locations.map(location => ({
+      id: location.id,
+      longitude: parseFloat(location.longitude),
+      latitude: parseFloat(location.latitude),
+      coordinateSystem: location.coordinate_system,
+      address: location.address || '地址未解析',
+      timestamp: location.created_at
+    }));
+    
+    res.json({
+      message: '获取设备位置历史成功',
+      data: {
+        deviceId: id,
+        deviceNumber: device.device_number,
+        locations: formattedLocations,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: count,
+          totalPages: Math.ceil(count / limit)
+        }
+      }
+    });
+  } catch (error) {
+    console.error('获取公开设备位置历史错误:', error);
+    res.status(500).json({
+      error: '获取设备位置历史失败',
+      code: 'GET_PUBLIC_DEVICE_LOCATION_HISTORY_ERROR'
+    });
+  }
+};
+
 module.exports = {
   getDeviceList,
   getDeviceDetail,
@@ -773,5 +890,7 @@ module.exports = {
   batchAssignCustomer,
   getDeviceMapData,
   getDeviceTrackPoints,
-  getMultipleDevicesMapData
+  getMultipleDevicesMapData,
+  getDeviceByNumber,
+  getPublicDeviceLocationHistory
 };

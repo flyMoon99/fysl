@@ -4,15 +4,6 @@
     
     <!-- 统计卡片 -->
     <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-icon">
-          <el-icon size="32" color="#409eff"><Clock /></el-icon>
-        </div>
-        <div class="stat-content">
-          <h3>最后登录</h3>
-          <p>{{ formatDate(userStore.user?.last_login_at) }}</p>
-        </div>
-      </div>
       
       <div class="stat-card">
         <div class="stat-icon">
@@ -21,16 +12,6 @@
         <div class="stat-content">
           <h3>账户状态</h3>
           <p>{{ userStore.user?.status === 'active' ? '正常' : '禁用' }}</p>
-        </div>
-      </div>
-      
-      <div class="stat-card">
-        <div class="stat-icon">
-          <el-icon size="32" color="#e6a23c"><Calendar /></el-icon>
-        </div>
-        <div class="stat-content">
-          <h3>注册时间</h3>
-          <p>{{ formatDate(userStore.user?.created_at) }}</p>
         </div>
       </div>
       
@@ -60,29 +41,9 @@
           <h3>修改密码</h3>
           <p>更新账户密码</p>
         </div>
-        
-        <div class="action-card" @click="$router.push('/member/login-history')">
-          <el-icon size="48" color="#e6a23c"><Clock /></el-icon>
-          <h3>登录历史</h3>
-          <p>查看登录记录</p>
-        </div>
       </div>
     </div>
 
-    <!-- 最近登录记录 -->
-    <div class="recent-logins">
-      <h2>最近登录记录</h2>
-      <el-table :data="recentLogins" style="width: 100%" v-loading="loading">
-        <el-table-column prop="operation_time" label="登录时间" width="180">
-          <template #default="scope">
-            {{ formatDateTime(scope.row.operation_time) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="ip_address" label="IP地址" width="150" />
-        <el-table-column prop="operation_url" label="登录页面" />
-        <el-table-column prop="user_agent" label="设备信息" show-overflow-tooltip />
-      </el-table>
-    </div>
   </div>
 </template>
 

@@ -105,6 +105,63 @@ class BaiduGeocodingService {
   }
 
   /**
+   * 确保地址是中文格式
+   * @param {string} address 原始地址
+   * @param {object} addressComponents 地址组件
+   * @returns {string} 中文地址
+   */
+  ensureChineseAddress(address, addressComponents) {
+    if (!address) return '地址解析失败';
+
+    // 如果地址已经是中文，直接返回
+    if (/[\u4e00-\u9fa5]/.test(address)) {
+      return address;
+    }
+
+    // 如果地址组件存在，尝试构建中文地址
+    if (addressComponents) {
+      const chineseParts = [];
+      
+      // 国家
+      if (addressComponents.country) {
+        chineseParts.push(addressComponents.country);
+      }
+      
+      // 省份
+      if (addressComponents.province) {
+        chineseParts.push(addressComponents.province);
+      }
+      
+      // 城市
+      if (addressComponents.city) {
+        chineseParts.push(addressComponents.city);
+      }
+      
+      // 区县
+      if (addressComponents.district) {
+        chineseParts.push(addressComponents.district);
+      }
+      
+      // 街道
+      if (addressComponents.street) {
+        chineseParts.push(addressComponents.street);
+      }
+      
+      // 门牌号
+      if (addressComponents.street_number) {
+        chineseParts.push(addressComponents.street_number);
+      }
+
+      if (chineseParts.length > 0) {
+        return chineseParts.join('');
+      }
+    }
+
+    // 如果无法构建中文地址，返回原始地址
+    return address;
+  }
+
+  /**
    * 逆向地理编码 - 根据坐标获取地址
    * @param {number} lng 经度
    * @param {number} lat 纬度
@@ -137,7 +194,9 @@ class BaiduGeocodingService {
         location: `${targetLat},${targetLng}`,
         extensions_poi: 0, // 不返回POI信息，减少响应大小
         extensions_road: false,
-        extensions_town: false
+        extensions_town: false,
+        language: 'zh-CN', // 强制返回中文地址
+        ret_coordtype: 'bd09ll' // 返回BD09坐标系
       };
 
       console.log(`[百度地图] 逆向解析坐标: ${lng}, ${lat} -> ${targetLng}, ${targetLat}`);
@@ -182,6 +241,9 @@ class BaiduGeocodingService {
         
         formattedAddress = parts.join('');
       }
+
+      // 确保地址是中文格式，如果不是则进行转换
+      formattedAddress = this.ensureChineseAddress(formattedAddress, addressComponents);
 
       console.log(`[百度地图] 地址解析成功: ${formattedAddress}`);
 

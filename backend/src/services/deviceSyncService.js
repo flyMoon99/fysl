@@ -183,10 +183,17 @@ class DeviceSyncService {
               );
               address = geocodeResult.address;
               console.log(`[轨迹同步] 地址解析成功: ${address}`);
+              
+              // 确保地址是中文格式
+              if (address && !/[\u4e00-\u9fa5]/.test(address)) {
+                console.log(`[轨迹同步] 地址非中文格式，尝试重新解析: ${address}`);
+                // 如果地址不是中文，使用备用方案
+                address = this.getLocationByCoordinate(locationPoint.longitude, locationPoint.latitude);
+              }
             } catch (geocodeError) {
-                          console.error(`[轨迹同步] 地址解析失败:`, geocodeError.message);
-            // 根据坐标范围提供大致的地理位置信息
-            address = this.getLocationByCoordinate(locationPoint.longitude, locationPoint.latitude);
+              console.error(`[轨迹同步] 地址解析失败:`, geocodeError.message);
+              // 根据坐标范围提供大致的地理位置信息
+              address = this.getLocationByCoordinate(locationPoint.longitude, locationPoint.latitude);
             }
           } else {
             console.warn(`[轨迹同步] 百度地图服务不可用，使用坐标范围判断地理位置`);
@@ -209,6 +216,41 @@ class DeviceSyncService {
       }
 
       console.log(`[轨迹同步] 设备 ${deviceNumber} 轨迹同步完成: 总点数${syncResult.totalPoints}, 保存${syncResult.savedPoints}, 重复${syncResult.duplicatePoints}, 错误${syncResult.errors.length}`);
+      
+      // 如果成功保存了轨迹点，更新设备的最新位置信息
+      if (syncResult.savedPoints > 0 && locationData.length > 0) {
+        try {
+          // 获取最新的轨迹点（按时间排序的最后一个）
+          const latestPoint = locationData.reduce((latest, current) => {
+            return new Date(current.created_at) > new Date(latest.created_at) ? current : latest;
+          });
+          
+          console.log(`[轨迹同步] 准备更新设备最新位置信息:`, {
+            longitude: latestPoint.longitude,
+            latitude: latestPoint.latitude,
+            time: latestPoint.created_at
+          });
+          
+          // 更新设备表中的最新位置信息
+          await Device.update({
+            last_longitude: latestPoint.longitude,
+            last_latitude: latestPoint.latitude,
+            last_update_time: latestPoint.created_at
+          }, {
+            where: { id: device.id }
+          });
+          
+          console.log(`[轨迹同步] 设备 ${deviceNumber} 最新位置信息更新成功`);
+        } catch (updateError) {
+          console.error(`[轨迹同步] 更新设备最新位置信息失败:`, updateError);
+          // 不影响整体同步结果，只记录错误
+          syncResult.errors.push({
+            type: 'device_update',
+            error: updateError.message
+          });
+        }
+      }
+      
       return syncResult;
     } catch (error) {
       console.error(`[轨迹同步] 同步设备 ${deviceNumber} 轨迹失败:`, error);
@@ -268,6 +310,13 @@ class DeviceSyncService {
             );
             address = geocodeResult.address;
             console.log(`[位置同步] 地址解析成功: ${address}`);
+            
+            // 确保地址是中文格式
+            if (address && !/[\u4e00-\u9fa5]/.test(address)) {
+              console.log(`[位置同步] 地址非中文格式，尝试重新解析: ${address}`);
+              // 如果地址不是中文，使用备用方案
+              address = this.getLocationByCoordinate(parseFloat(locationData.longitude), parseFloat(locationData.latitude));
+            }
           } catch (geocodeError) {
             console.error(`[位置同步] 地址解析失败:`, geocodeError.message);
             // 根据坐标范围提供大致的地理位置信息

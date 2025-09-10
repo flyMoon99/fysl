@@ -1,8 +1,8 @@
 <template>
-  <div class="login-page">
-    <div class="login-container">
+  <div class="device-query-page">
+    <div class="query-container">
       <!-- 左侧品牌展示区 -->
-      <div class="login-left">
+      <div class="query-left">
         <div class="brand-section">
           <div class="logo-area">
             <h1 class="brand-title">福佑丝路</h1>
@@ -10,86 +10,74 @@
           </div>
           
           <div class="system-info">
-            <h3 class="system-title">国际运输</h3>
-            <h3 class="system-title">GPS跟踪系统</h3>
-            <p class="system-description">让每一次跨境物流都清晰可见</p>
+            <h3 class="system-title">设备轨迹</h3>
+            <h3 class="system-title">查询系统</h3>
+            <p class="system-description">让每一次设备追踪都清晰可见</p>
           </div>
           
           <div class="features">
             <div class="feature-item">
               <div class="feature-icon">📍</div>
-              <span>国际GPS定位</span>
+              <span>实时GPS定位</span>
             </div>
             <div class="feature-item">
-              <div class="feature-icon">🚚</div>
-              <span>运单全程跟踪</span>
+              <div class="feature-icon">📱</div>
+              <span>无需登录访问</span>
             </div>
           </div>
         </div>
       </div>
       
-      <!-- 右侧登录表单区 -->
-      <div class="login-right">
+      <!-- 右侧查询表单区 -->
+      <div class="query-right">
         <div class="form-section">
           <div class="form-header">
-            <h1>欢迎登录</h1>
-            <p>请输入您的账户信息以访问系统</p>
+            <h1>设备轨迹查询</h1>
+            <p>请输入设备号查询设备轨迹信息</p>
           </div>
           
           <el-form 
-            ref="formRef" 
-            :model="form" 
-            :rules="rules" 
-            class="login-form"
-            v-loading="loading"
+            ref="queryFormRef" 
+            :model="queryForm" 
+            :rules="queryRules" 
+            class="query-form"
+            v-loading="querying"
           >
-            <el-form-item prop="username">
-              <label class="form-label">用户名/邮箱</label>
+            <el-form-item prop="deviceNumber">
+              <label class="form-label">设备号</label>
               <el-input 
-                v-model="form.username" 
-                placeholder="请输入用户名或邮箱"
+                v-model="queryForm.deviceNumber" 
+                placeholder="请输入设备号"
                 size="large"
                 class="form-input"
-              />
+                clearable
+                @keyup.enter="handleQuery"
+              >
+                <template #prefix>
+                  <el-icon><Search /></el-icon>
+                </template>
+              </el-input>
             </el-form-item>
-            
-            <el-form-item prop="password">
-              <label class="form-label">密码</label>
-              <el-input 
-                v-model="form.password" 
-                type="password" 
-                placeholder="请输入密码"
-                size="large"
-                class="form-input"
-                show-password
-                @keyup.enter="handleLogin"
-              />
-            </el-form-item>
-            
-            <div class="form-options">
-              <el-checkbox v-model="rememberMe" class="remember-checkbox">
-                记住我
-              </el-checkbox>
-            </div>
             
             <el-form-item>
               <el-button 
                 type="primary" 
                 size="large" 
-                class="login-btn"
-                @click="handleLogin"
-                :loading="submitting"
+                class="query-btn"
+                @click="handleQuery"
+                :loading="querying"
               >
-                登录系统
+                <el-icon><Search /></el-icon>
+                查询轨迹
               </el-button>
             </el-form-item>
           </el-form>
           
           <div class="form-footer">
             <div class="quick-links">
-              <router-link to="/device-query" class="quick-link">
-                <el-icon><Search /></el-icon>
-                设备轨迹查询
+              <router-link to="/login" class="quick-link">
+                <el-icon><User /></el-icon>
+                会员登录
               </router-link>
             </div>
             <p class="copyright">
@@ -104,101 +92,81 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
-import { useUserStore } from '@/store/user'
 import { ElMessage } from 'element-plus'
-import { Search } from '@element-plus/icons-vue'
-import logoUrl from '@/assets/logo.png'
+import { Search, User } from '@element-plus/icons-vue'
+import { publicAPI } from '@/utils/api'
 
 const router = useRouter()
-const userStore = useUserStore()
-const formRef = ref()
-const loading = ref(false)
-const submitting = ref(false)
-const rememberMe = ref(false)
+const queryFormRef = ref()
+const querying = ref(false)
 
-const form = reactive({
-  username: '',
-  password: ''
+// 查询表单数据
+const queryForm = reactive({
+  deviceNumber: ''
 })
 
-const rules = {
-  username: [
-    { required: true, message: '请输入用户名或邮箱', trigger: 'blur' },
-    { min: 3, max: 50, message: '用户名长度在 3 到 50 个字符', trigger: 'blur' }
-  ],
-  password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, message: '密码长度不能少于6位', trigger: 'blur' }
+// 表单验证规则
+const queryRules = {
+  deviceNumber: [
+    { required: true, message: '请输入设备号', trigger: 'blur' },
+    { min: 3, message: '设备号至少3位', trigger: 'blur' }
   ]
 }
 
-// 从本地存储加载记住的用户信息
-const loadRememberedUser = () => {
-  const rememberedUsername = localStorage.getItem('rememberedUsername')
-  const rememberedPassword = localStorage.getItem('rememberedPassword')
-  
-  if (rememberedUsername && rememberedPassword) {
-    form.username = rememberedUsername
-    form.password = rememberedPassword
-    rememberMe.value = true
-  }
-}
-
-// 保存或清除记住的用户信息
-const handleRememberMe = () => {
-  if (rememberMe.value) {
-    localStorage.setItem('rememberedUsername', form.username)
-    localStorage.setItem('rememberedPassword', form.password)
-  } else {
-    localStorage.removeItem('rememberedUsername')
-    localStorage.removeItem('rememberedPassword')
-  }
-}
-
-// 处理登录
-const handleLogin = async () => {
+// 处理查询
+const handleQuery = async () => {
   try {
-    await formRef.value.validate()
-    submitting.value = true
+    // 验证表单
+    await queryFormRef.value.validate()
     
-    const result = await userStore.memberLogin({
-      username: form.username,
-      password: form.password
-    })
+    querying.value = true
     
-    if (result.success) {
-      // 处理记住我功能
-      handleRememberMe()
+    // 检查设备是否存在
+    const response = await publicAPI.getDeviceByNumber(queryForm.deviceNumber)
+    
+    if (response.data && response.data.data) {
+      const device = response.data.data
       
-      ElMessage.success('登录成功')
-      router.push('/member')
+      // 跳转到查询结果页面
+      router.push({
+        name: 'DeviceQueryResult',
+        params: {
+          deviceNumber: queryForm.deviceNumber
+        },
+        query: {
+          deviceId: device.id,
+          deviceAlias: device.device_alias || ''
+        }
+      })
     } else {
-      ElMessage.error(result.message || '登录失败，请检查用户名和密码')
+      ElMessage.error('未找到该设备，请检查设备号是否正确')
     }
   } catch (error) {
-    console.error('登录失败:', error)
-    ElMessage.error('登录失败，请检查用户名和密码')
+    console.error('查询设备失败:', error)
+    
+    // 如果是表单验证错误，不显示通用错误信息
+    if (error.name === 'ValidationError' || error.message?.includes('validation')) {
+      // 表单验证错误，Element Plus会自动显示验证信息，这里不需要额外处理
+      return
+    }
+    
+    // API请求错误
+    if (error.response?.status === 404) {
+      ElMessage.error('未找到该设备，请检查设备号是否正确')
+    } else {
+      ElMessage.error('查询失败，请稍后重试')
+    }
   } finally {
-    submitting.value = false
+    querying.value = false
   }
 }
-
-// 处理忘记密码
-const handleForgotPassword = () => {
-  ElMessage.info('忘记密码功能正在开发中，请联系管理员重置密码')
-}
-
-// 组件挂载时加载记住的用户信息
-onMounted(() => {
-  loadRememberedUser()
-})
 </script>
 
 <style scoped>
 /* 整体页面样式 */
-.login-page {
+.device-query-page {
   min-height: 100vh;
   display: flex;
   align-items: center;
@@ -206,7 +174,7 @@ onMounted(() => {
   background-color: #f5f5f5;
 }
 
-.login-container {
+.query-container {
   display: flex;
   width: 100%;
   max-width: 1200px;
@@ -217,7 +185,7 @@ onMounted(() => {
 }
 
 /* 左侧品牌展示区 */
-.login-left {
+.query-left {
   flex: 1;
   background: linear-gradient(135deg, #4A90E2 0%, #357ABD 100%);
   padding: 60px 50px;
@@ -228,7 +196,7 @@ onMounted(() => {
   color: white;
 }
 
-.login-left::before {
+.query-left::before {
   content: '';
   position: absolute;
   top: 0;
@@ -249,13 +217,6 @@ onMounted(() => {
 
 .logo-area {
   margin-bottom: 40px;
-}
-
-.logo {
-  width: 80px;
-  height: 80px;
-  margin-bottom: 20px;
-  filter: brightness(0) invert(1);
 }
 
 .brand-title {
@@ -312,8 +273,8 @@ onMounted(() => {
   text-align: center;
 }
 
-/* 右侧登录表单区 */
-.login-right {
+/* 右侧查询表单区 */
+.query-right {
   flex: 1;
   background: white;
   padding: 60px 50px;
@@ -345,7 +306,7 @@ onMounted(() => {
   margin: 0;
 }
 
-.login-form {
+.query-form {
   margin-bottom: 30px;
 }
 
@@ -357,7 +318,7 @@ onMounted(() => {
   margin-bottom: 8px;
 }
 
-.login-form .el-form-item {
+.query-form .el-form-item {
   margin-bottom: 24px;
 }
 
@@ -383,35 +344,7 @@ onMounted(() => {
   box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.1);
 }
 
-.form-options {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 30px;
-}
-
-.remember-checkbox {
-  font-size: 14px;
-  color: #666;
-}
-
-.remember-checkbox :deep(.el-checkbox__label) {
-  color: #666;
-}
-
-.forgot-password {
-  font-size: 14px;
-  color: #4A90E2;
-  text-decoration: none;
-  transition: color 0.3s ease;
-}
-
-.forgot-password:hover {
-  color: #357ABD;
-  text-decoration: underline;
-}
-
-.login-btn {
+.query-btn {
   width: 100%;
   height: 48px;
   font-size: 16px;
@@ -422,7 +355,7 @@ onMounted(() => {
   transition: all 0.3s ease;
 }
 
-.login-btn:hover {
+.query-btn:hover {
   background: #357ABD;
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
@@ -459,39 +392,6 @@ onMounted(() => {
   text-decoration: none;
 }
 
-.register-text {
-  font-size: 14px;
-  color: #999;
-  margin: 0 0 15px 0;
-}
-
-.register-link {
-  margin: 0 0 20px 0;
-}
-
-.register-link span {
-  color: #4A90E2;
-  font-size: 14px;
-  cursor: pointer;
-  text-decoration: underline;
-}
-
-.terms {
-  font-size: 12px;
-  color: #999;
-  line-height: 1.5;
-  margin: 20px 0;
-}
-
-.terms .link {
-  color: #4A90E2;
-  text-decoration: none;
-}
-
-.terms .link:hover {
-  text-decoration: underline;
-}
-
 .copyright {
   font-size: 11px;
   color: #ccc;
@@ -501,12 +401,12 @@ onMounted(() => {
 
 /* 响应式设计 */
 @media (max-width: 768px) {
-  .login-container {
+  .query-container {
     flex-direction: column;
     min-height: 100vh;
   }
   
-  .login-left {
+  .query-left {
     flex: none;
     min-height: 40vh;
     padding: 40px 30px;
@@ -525,7 +425,7 @@ onMounted(() => {
     gap: 15px;
   }
   
-  .login-right {
+  .query-right {
     flex: 1;
     padding: 40px 30px;
   }
@@ -536,7 +436,7 @@ onMounted(() => {
 }
 
 @media (max-width: 480px) {
-  .login-left, .login-right {
+  .query-left, .query-right {
     padding: 30px 20px;
   }
   
@@ -555,25 +455,26 @@ onMounted(() => {
 
 /* 中等屏幕优化 */
 @media (min-width: 769px) and (max-width: 1199px) {
-  .login-container {
+  .query-container {
     max-width: 1000px;
   }
   
-  .login-left, .login-right {
+  .query-left, .query-right {
     padding: 50px 40px;
   }
 }
 
 /* 大屏幕优化 */
 @media (min-width: 1200px) {
-  .login-container {
+  .query-container {
     max-width: 1200px;
     border-radius: 12px;
     min-height: 700px;
   }
   
-  .login-page {
+  .device-query-page {
     padding: 20px;
   }
 }
 </style>
+

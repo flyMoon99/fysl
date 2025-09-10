@@ -52,7 +52,7 @@
             {{ scope.row.transportDetails ? scope.row.transportDetails.length : 0 }} 条
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200">
+        <el-table-column label="操作" width="300">
           <template #default="scope">
             <el-button-group size="small">
               <el-button
@@ -60,6 +60,18 @@
                 @click="openWaybillDetail(scope.row)"
               >
                 详情
+              </el-button>
+              <el-button
+                type="success"
+                @click="showShareDialog(scope.row)"
+              >
+                分享
+              </el-button>
+              <el-button
+                type="info"
+                @click="showDownloadDialog(scope.row)"
+              >
+                下载
               </el-button>
               <el-button
                 type="warning"
@@ -142,6 +154,147 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="showDetailDialog = false">关闭</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <!-- 下载运单对话框 -->
+    <el-dialog 
+      v-model="showDownloadWaybillDialog" 
+      title="下载运单及运输明细"
+      width="500px"
+    >
+      <div v-if="currentDownloadWaybill" class="download-waybill-content">
+        <div class="download-info-section">
+          <h4>运单信息</h4>
+          <p><strong>运单号：</strong>{{ currentDownloadWaybill.waybill_number }}</p>
+          <p><strong>运单备注：</strong>{{ currentDownloadWaybill.waybill_remarks || '无' }}</p>
+          <p><strong>运输明细数量：</strong>{{ currentDownloadWaybill.transportDetails ? currentDownloadWaybill.transportDetails.length : 0 }} 条</p>
+        </div>
+        
+        <div class="download-description-section">
+          <h4>下载内容</h4>
+          <el-alert
+            title="将下载运单基本信息及关联设备的最近5条位置记录"
+            type="info"
+            :closable="false"
+            show-icon
+          />
+          <div class="download-details">
+            <p><strong>表格内容包含：</strong></p>
+            <ul>
+              <li>运单号</li>
+              <li>运单备注</li>
+              <li>设备号</li>
+              <li>车牌号</li>
+              <li>运输备注</li>
+              <li>位置</li>
+              <li>更新时间</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="showDownloadWaybillDialog = false">取消</el-button>
+          <el-button 
+            type="primary" 
+            @click="confirmDownloadWaybill"
+            :loading="downloadingWaybill"
+          >
+            确定下载
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <!-- 分享运单对话框 -->
+    <el-dialog 
+      v-model="showShareWaybillDialog" 
+      title="分享运单"
+      width="600px"
+    >
+      <div v-if="currentShareWaybill" class="share-waybill-content">
+        <div class="share-info-section">
+          <h4>运单信息</h4>
+          <p><strong>运单号：</strong>{{ currentShareWaybill.waybill_number }}</p>
+          <p><strong>运单备注：</strong>{{ currentShareWaybill.waybill_remarks || '无' }}</p>
+        </div>
+        
+        <div class="share-url-section">
+          <h4>分享地址</h4>
+          <div class="url-display">
+            <el-input
+              v-model="shareUrl"
+              readonly
+              placeholder="运单查看地址"
+            >
+              <template #append>
+                <el-button @click="copyShareInfo" type="primary">
+                  <el-icon><DocumentCopy /></el-icon>
+                  复制
+                </el-button>
+              </template>
+            </el-input>
+          </div>
+        </div>
+        
+        <div class="password-section">
+          <h4>查看密码（可选）</h4>
+          <div class="password-input-group">
+            <el-input
+              v-model="sharePassword"
+              placeholder="设置查看密码，不设置则为公开查看"
+              maxlength="20"
+              show-word-limit
+              clearable
+            >
+              <template #append>
+                <el-button 
+                  @click="saveSharePassword" 
+                  type="success"
+                  :loading="savingPassword"
+                  :disabled="!hasPasswordChanged"
+                >
+                  保存
+                </el-button>
+              </template>
+            </el-input>
+          </div>
+          <div class="password-tips">
+            <el-alert
+              title="如果设置了查看密码，访问者需要输入密码才能查看运单详情"
+              type="info"
+              :closable="false"
+              show-icon
+            />
+          </div>
+        </div>
+        
+        <div class="copy-info-section">
+          <h4>分享信息</h4>
+          <div class="copy-content">
+            <el-input
+              v-model="copyContent"
+              type="textarea"
+              :rows="4"
+              readonly
+              placeholder="点击复制按钮复制完整分享信息"
+            />
+          </div>
+          <div class="copy-action">
+            <el-button @click="copyShareInfo" type="primary" size="large">
+              <el-icon><DocumentCopy /></el-icon>
+              复制完整信息
+            </el-button>
+          </div>
+        </div>
+      </div>
+      
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="showShareWaybillDialog = false">关闭</el-button>
         </span>
       </template>
     </el-dialog>
@@ -290,14 +443,18 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { memberAPI } from '@/utils/api'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { DocumentCopy } from '@element-plus/icons-vue'
+import * as XLSX from 'xlsx'
 
 const loading = ref(false)
 const submitting = ref(false)
 const showDetailDialog = ref(false)
 const showFormDialog = ref(false)
+const showShareWaybillDialog = ref(false)
+const showDownloadWaybillDialog = ref(false)
 const isEdit = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(10)
@@ -308,6 +465,12 @@ const availableDevices = ref([]) // 未关联运单的设备列表
 const selectedDeviceIds = ref([]) // 选中的设备ID列表
 const deviceTransportInfo = ref({}) // 设备运输信息
 const currentWaybill = ref(null)
+const currentShareWaybill = ref(null)
+const currentDownloadWaybill = ref(null)
+const sharePassword = ref('')
+const originalSharePassword = ref('')
+const savingPassword = ref(false)
+const downloadingWaybill = ref(false)
 const formRef = ref(null)
 const deviceTableRef = ref(null)
 
@@ -329,6 +492,38 @@ const formRules = {
     { required: true, message: '请输入运单号', trigger: 'blur' }
   ]
 }
+
+// 计算属性
+// 生成分享地址
+const shareUrl = computed(() => {
+  if (!currentShareWaybill.value) return ''
+  const baseUrl = window.location.origin
+  return `${baseUrl}/waybill/${currentShareWaybill.value.id}`
+})
+
+// 检查密码是否变化
+const hasPasswordChanged = computed(() => {
+  return sharePassword.value !== originalSharePassword.value
+})
+
+// 生成复制内容
+const copyContent = computed(() => {
+  if (!currentShareWaybill.value) return ''
+  
+  let content = `运单查看地址：${shareUrl.value}`
+  
+  if (sharePassword.value.trim()) {
+    content += `\n查看密码：${sharePassword.value}`
+  }
+  
+  content += `\n\n运单信息：`
+  content += `\n运单号：${currentShareWaybill.value.waybill_number}`
+  if (currentShareWaybill.value.waybill_remarks) {
+    content += `\n运单备注：${currentShareWaybill.value.waybill_remarks}`
+  }
+  
+  return content
+})
 
 // 格式化日期时间
 const formatDateTime = (dateString) => {
@@ -432,6 +627,11 @@ const handleDialogClose = () => {
   resetDeviceSelection()
   currentWaybill.value = null
   isEdit.value = false
+  
+  // 如果是编辑模式，重新加载设备列表以恢复原始状态
+  if (isEdit.value) {
+    fetchDeviceList()
+  }
 }
 
 // 显示创建对话框
@@ -474,6 +674,25 @@ const editWaybill = (waybill) => {
       }
     })
     
+    // 构建扩展的设备列表，包含已关联的设备（即使它们可能已经关联到其他运单）
+    const extendedAvailableDevices = [...availableDevices.value]
+    
+    // 添加已关联但不在可用设备列表中的设备
+    waybill.transportDetails.forEach(detail => {
+      if (detail.device && !extendedAvailableDevices.find(d => d.id === detail.device_id)) {
+        extendedAvailableDevices.push({
+          id: detail.device_id,
+          device_number: detail.device.device_number,
+          device_alias: detail.device.device_alias || '',
+          battery_level: detail.device.battery_level || 0,
+          status: detail.device.status || 'offline'
+        })
+      }
+    })
+    
+    // 临时更新可用设备列表
+    availableDevices.value = extendedAvailableDevices
+    
     // 更新表格选择状态
     setTimeout(() => {
       if (deviceTableRef.value) {
@@ -514,6 +733,287 @@ const deleteWaybill = async (waybill) => {
   }
 }
 
+// 显示分享对话框
+const showShareDialog = (waybill) => {
+  currentShareWaybill.value = waybill
+  sharePassword.value = waybill.waybill_password || ''
+  originalSharePassword.value = waybill.waybill_password || ''
+  showShareWaybillDialog.value = true
+}
+
+// 保存查看密码
+const saveSharePassword = async () => {
+  try {
+    savingPassword.value = true
+    
+    const updateData = {
+      waybill_password: sharePassword.value.trim() || null
+    }
+    
+    await memberAPI.updateWaybill(currentShareWaybill.value.id, updateData)
+    
+    // 更新本地数据
+    currentShareWaybill.value.waybill_password = sharePassword.value.trim() || null
+    originalSharePassword.value = sharePassword.value.trim() || ''
+    
+    // 更新列表中的数据
+    const waybillIndex = waybillList.value.findIndex(w => w.id === currentShareWaybill.value.id)
+    if (waybillIndex !== -1) {
+      waybillList.value[waybillIndex].waybill_password = sharePassword.value.trim() || null
+    }
+    
+    ElMessage.success('密码保存成功')
+  } catch (error) {
+    console.error('保存密码失败:', error)
+    ElMessage.error('保存密码失败')
+  } finally {
+    savingPassword.value = false
+  }
+}
+
+// 复制分享信息
+const copyShareInfo = async () => {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      // 使用现代API
+      await navigator.clipboard.writeText(copyContent.value)
+    } else {
+      // 后备方案
+      const textArea = document.createElement('textarea')
+      textArea.value = copyContent.value
+      textArea.style.position = 'fixed'
+      textArea.style.opacity = '0'
+      document.body.appendChild(textArea)
+      textArea.focus()
+      textArea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textArea)
+    }
+    
+    ElMessage.success('复制成功')
+  } catch (error) {
+    console.error('复制失败:', error)
+    ElMessage.error('复制失败')
+  }
+}
+
+// 显示下载对话框
+const showDownloadDialog = (waybill) => {
+  currentDownloadWaybill.value = waybill
+  showDownloadWaybillDialog.value = true
+}
+
+// 确认下载运单
+const confirmDownloadWaybill = async () => {
+  try {
+    downloadingWaybill.value = true
+    
+    if (!currentDownloadWaybill.value || !currentDownloadWaybill.value.id) {
+      throw new Error('运单信息不完整')
+    }
+    
+    console.log('开始下载运单:', currentDownloadWaybill.value.id)
+    
+    // 获取运单详细信息和设备位置数据
+    const waybillData = await fetchWaybillDataForDownload(currentDownloadWaybill.value.id)
+    
+    // 生成Excel文件
+    await generateExcelFile(waybillData)
+    
+    ElMessage.success('下载成功')
+    showDownloadWaybillDialog.value = false
+  } catch (error) {
+    console.error('下载失败:', error)
+    const errorMessage = error.message || '下载失败，请稍后重试'
+    ElMessage.error(errorMessage)
+  } finally {
+    downloadingWaybill.value = false
+  }
+}
+
+// 获取运单下载数据
+const fetchWaybillDataForDownload = async (waybillId) => {
+  try {
+    // 获取运单详细信息
+    const waybillResponse = await memberAPI.getWaybillDetail(waybillId)
+    console.log('运单详情API响应:', waybillResponse.data)
+    
+    // 处理不同的API响应格式
+    let waybill
+    if (waybillResponse.data?.data?.waybill) {
+      waybill = waybillResponse.data.data.waybill
+    } else if (waybillResponse.data?.data && waybillResponse.data.data.waybill_number) {
+      waybill = waybillResponse.data.data
+    } else if (waybillResponse.data?.waybill_number) {
+      waybill = waybillResponse.data
+    } else {
+      throw new Error('无法解析运单数据格式')
+    }
+    
+    console.log('解析后的运单数据:', waybill)
+    
+    // 为每个设备获取最近5条位置记录
+    const deviceLocationData = []
+    
+    if (waybill.transportDetails && waybill.transportDetails.length > 0) {
+      for (const detail of waybill.transportDetails) {
+        try {
+          // 获取设备位置记录
+          const locationResponse = await memberAPI.getDeviceLocationHistory(detail.device_id, {
+            limit: 5,
+            page: 1
+          })
+          
+          const locations = locationResponse.data.data.locations || []
+          
+          // 如果没有位置记录，使用运输明细中的位置信息
+          if (locations.length === 0) {
+            deviceLocationData.push({
+              waybill_number: waybill.waybill_number,
+              waybill_remarks: waybill.waybill_remarks || '',
+              device_number: detail.device ? detail.device.device_number : detail.device_id,
+              license_plate: detail.license_plate || '',
+              transport_remarks: detail.transport_remarks || '',
+              address: detail.address || '暂无位置信息',
+              update_time: detail.last_update_time ? formatDateTime(detail.last_update_time) : '暂无'
+            })
+          } else {
+            // 使用位置记录
+            locations.forEach(location => {
+              deviceLocationData.push({
+                waybill_number: waybill.waybill_number,
+                waybill_remarks: waybill.waybill_remarks || '',
+                device_number: detail.device ? detail.device.device_number : detail.device_id,
+                license_plate: detail.license_plate || '',
+                transport_remarks: detail.transport_remarks || '',
+                address: location.address || `${location.longitude}, ${location.latitude}`,
+                update_time: formatDateTime(location.created_at)
+              })
+            })
+          }
+        } catch (error) {
+          console.error(`获取设备 ${detail.device_id} 位置记录失败:`, error)
+          // 如果获取位置记录失败，使用运输明细的基本信息
+          deviceLocationData.push({
+            waybill_number: waybill.waybill_number,
+            waybill_remarks: waybill.waybill_remarks || '',
+            device_number: detail.device ? detail.device.device_number : detail.device_id,
+            license_plate: detail.license_plate || '',
+            transport_remarks: detail.transport_remarks || '',
+            address: detail.address || '暂无位置信息',
+            update_time: detail.last_update_time ? formatDateTime(detail.last_update_time) : '暂无'
+          })
+        }
+      }
+    } else {
+      console.log('运单没有运输明细数据')
+      // 即使没有运输明细，也创建一个基本的记录
+      deviceLocationData.push({
+        waybill_number: waybill.waybill_number,
+        waybill_remarks: waybill.waybill_remarks || '',
+        device_number: '暂无设备',
+        license_plate: '',
+        transport_remarks: '',
+        address: '暂无位置信息',
+        update_time: waybill.created_at ? formatDateTime(waybill.created_at) : '暂无'
+      })
+    }
+    
+    return {
+      waybill,
+      deviceLocationData
+    }
+  } catch (error) {
+    console.error('获取运单数据失败:', error)
+    console.error('错误详情:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status
+    })
+    throw error
+  }
+}
+
+// 生成Excel文件
+const generateExcelFile = async (waybillData) => {
+  try {
+    const { waybill, deviceLocationData } = waybillData
+    
+    // 创建工作簿
+    const workbook = XLSX.utils.book_new()
+    
+    // 设置表头
+    const headers = [
+      '运单号',
+      '运单备注', 
+      '设备号',
+      '车牌号',
+      '运输备注',
+      '位置',
+      '更新时间'
+    ]
+    
+    // 准备数据
+    const worksheetData = [headers]
+    
+    // 添加数据行
+    deviceLocationData.forEach(item => {
+      worksheetData.push([
+        item.waybill_number,
+        item.waybill_remarks,
+        item.device_number,
+        item.license_plate,
+        item.transport_remarks,
+        item.address,
+        item.update_time
+      ])
+    })
+    
+    // 如果没有数据，至少添加一行基本信息
+    if (deviceLocationData.length === 0) {
+      worksheetData.push([
+        waybill.waybill_number,
+        waybill.waybill_remarks || '',
+        '',
+        '',
+        '',
+        '暂无设备信息',
+        formatDateTime(waybill.created_at)
+      ])
+    }
+    
+    // 创建工作表
+    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData)
+    
+    // 设置列宽
+    const columnWidths = [
+      { wch: 15 }, // 运单号
+      { wch: 25 }, // 运单备注
+      { wch: 15 }, // 设备号
+      { wch: 12 }, // 车牌号
+      { wch: 20 }, // 运输备注
+      { wch: 30 }, // 位置
+      { wch: 20 }  // 更新时间
+    ]
+    worksheet['!cols'] = columnWidths
+    
+    // 添加工作表到工作簿
+    XLSX.utils.book_append_sheet(workbook, worksheet, '运单及运输明细')
+    
+    // 生成文件名：日期-运单号.xlsx
+    const today = new Date()
+    const dateStr = today.toISOString().split('T')[0] // YYYY-MM-DD格式
+    const fileName = `${dateStr}-${waybill.waybill_number}.xlsx`
+    
+    // 下载文件
+    XLSX.writeFile(workbook, fileName)
+    
+  } catch (error) {
+    console.error('生成Excel文件失败:', error)
+    throw error
+  }
+}
+
 // 重置表单
 const resetForm = () => {
   // 先清除验证状态
@@ -546,15 +1046,28 @@ const resetDeviceSelection = () => {
 const handleDeviceSelectionChange = (selection) => {
   const newSelectedIds = selection.map(device => device.id)
   
-  // 移除未选中设备的运输信息
+  // 如果是编辑模式，需要保留原有的已选设备
+  let finalSelectedIds = [...newSelectedIds]
+  if (isEdit.value) {
+    // 获取原有运单中的设备ID列表
+    const originalDeviceIds = currentWaybill.value && currentWaybill.value.transportDetails 
+      ? currentWaybill.value.transportDetails.map(detail => detail.device_id)
+      : []
+    
+    // 合并原有设备和新选择的设备，去重
+    const allSelectedIds = [...new Set([...selectedDeviceIds.value, ...newSelectedIds])]
+    finalSelectedIds = allSelectedIds
+  }
+  
+  // 移除未选中设备的运输信息（只移除不在最终选择列表中的设备）
   Object.keys(deviceTransportInfo.value).forEach(deviceId => {
-    if (!newSelectedIds.includes(parseInt(deviceId))) {
+    if (!finalSelectedIds.includes(parseInt(deviceId))) {
       delete deviceTransportInfo.value[deviceId]
     }
   })
   
   // 为新选中的设备添加默认运输信息
-  newSelectedIds.forEach(deviceId => {
+  finalSelectedIds.forEach(deviceId => {
     if (!deviceTransportInfo.value[deviceId]) {
       deviceTransportInfo.value[deviceId] = {
         license_plate: '',
@@ -563,7 +1076,7 @@ const handleDeviceSelectionChange = (selection) => {
     }
   })
   
-  selectedDeviceIds.value = newSelectedIds
+  selectedDeviceIds.value = finalSelectedIds
 }
 
 // 全选设备
@@ -598,6 +1111,13 @@ const getDeviceDisplayName = (deviceId) => {
 // 获取设备号
 const getDeviceNumber = (deviceId) => {
   const device = availableDevices.value.find(d => d.id === deviceId)
+  // 如果在可用设备列表中找不到，尝试从当前运单的设备列表中查找
+  if (!device && currentWaybill.value && currentWaybill.value.transportDetails) {
+    const transportDetail = currentWaybill.value.transportDetails.find(detail => detail.device_id === deviceId)
+    if (transportDetail && transportDetail.device) {
+      return transportDetail.device.device_number
+    }
+  }
   return device ? device.device_number : `${deviceId}`
 }
 
@@ -921,6 +1441,125 @@ onMounted(() => {
 
 .device-actions {
   flex-shrink: 0;
+}
+
+/* 下载对话框样式 */
+.download-waybill-content {
+  padding: 10px 0;
+}
+
+.download-info-section,
+.download-description-section {
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.download-description-section {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.download-info-section h4,
+.download-description-section h4 {
+  margin: 0 0 15px 0;
+  color: #303133;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.download-info-section p {
+  margin: 8px 0;
+  color: #606266;
+  line-height: 1.5;
+}
+
+.download-details {
+  margin-top: 15px;
+}
+
+.download-details p {
+  margin: 10px 0 8px 0;
+  color: #303133;
+  font-weight: 500;
+}
+
+.download-details ul {
+  margin: 8px 0;
+  padding-left: 20px;
+  color: #606266;
+}
+
+.download-details li {
+  margin: 5px 0;
+  line-height: 1.4;
+}
+
+/* 分享对话框样式 */
+.share-waybill-content {
+  padding: 10px 0;
+}
+
+.share-info-section,
+.share-url-section,
+.password-section,
+.copy-info-section {
+  margin-bottom: 25px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.copy-info-section {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.share-info-section h4,
+.share-url-section h4,
+.password-section h4,
+.copy-info-section h4 {
+  margin: 0 0 15px 0;
+  color: #303133;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.share-info-section p {
+  margin: 8px 0;
+  color: #606266;
+  line-height: 1.5;
+}
+
+.url-display {
+  margin-bottom: 10px;
+}
+
+.password-input-group {
+  margin-bottom: 15px;
+}
+
+.password-tips {
+  margin-top: 10px;
+}
+
+.copy-content {
+  margin-bottom: 15px;
+}
+
+.copy-action {
+  text-align: center;
+}
+
+.copy-action .el-button {
+  padding: 12px 30px;
+  font-size: 16px;
+}
+
+/* 弹窗底部按钮样式 */
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 /* 电量显示样式 */

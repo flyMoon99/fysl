@@ -288,20 +288,48 @@ export class BaiduMapUtils {
   createDeviceIconSVG(color = '#67c23a') {
     const svg = `
       <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-        <!-- 卡车主体 -->
-        <rect x="4" y="12" width="16" height="8" fill="${color}" stroke="#fff" stroke-width="1" rx="1"/>
+        <!-- 阴影效果 -->
+        <ellipse cx="16" cy="30" rx="14" ry="2" fill="rgba(0,0,0,0.2)"/>
+        
+        <!-- 卡车货厢主体 -->
+        <rect x="2" y="12" width="18" height="10" fill="${color}" stroke="#2c3e50" stroke-width="1.5" rx="2"/>
+        
         <!-- 驾驶室 -->
-        <rect x="20" y="10" width="8" height="10" fill="${color}" stroke="#fff" stroke-width="1" rx="1"/>
-        <!-- 前轮 -->
-        <circle cx="8" cy="22" r="3" fill="#333" stroke="#fff" stroke-width="1"/>
-        <!-- 后轮 -->
-        <circle cx="24" cy="22" r="3" fill="#333" stroke="#fff" stroke-width="1"/>
+        <rect x="20" y="8" width="10" height="14" fill="${color}" stroke="#2c3e50" stroke-width="1.5" rx="2"/>
+        
+        <!-- 前保险杠 -->
+        <rect x="29" y="12" width="2" height="6" fill="#34495e" rx="1"/>
+        
         <!-- 车窗 -->
-        <rect x="21" y="11" width="6" height="4" fill="#87CEEB" stroke="#fff" stroke-width="0.5" rx="0.5"/>
-        <!-- 车灯 -->
-        <circle cx="29" cy="13" r="1" fill="#FFD700"/>
-        <!-- 状态指示点 -->
-        <circle cx="16" cy="16" r="2" fill="#fff"/>
+        <rect x="21.5" y="9.5" width="7" height="5" fill="#87CEEB" stroke="#2c3e50" stroke-width="1" rx="1"/>
+        
+        <!-- 前车灯 -->
+        <circle cx="29.5" cy="13" r="1.5" fill="#FFD700" stroke="#f39c12" stroke-width="0.5"/>
+        <circle cx="29.5" cy="17" r="1.5" fill="#FFD700" stroke="#f39c12" stroke-width="0.5"/>
+        
+        <!-- 前轮 -->
+        <circle cx="8" cy="24" r="4" fill="#2c3e50" stroke="#34495e" stroke-width="1.5"/>
+        <circle cx="8" cy="24" r="2.5" fill="#7f8c8d"/>
+        <circle cx="8" cy="24" r="1" fill="#95a5a6"/>
+        
+        <!-- 后轮 -->
+        <circle cx="24" cy="24" r="4" fill="#2c3e50" stroke="#34495e" stroke-width="1.5"/>
+        <circle cx="24" cy="24" r="2.5" fill="#7f8c8d"/>
+        <circle cx="24" cy="24" r="1" fill="#95a5a6"/>
+        
+        <!-- 车门线条 -->
+        <line x1="21" y1="10" x2="21" y2="20" stroke="#2c3e50" stroke-width="1"/>
+        
+        <!-- 货厢门把手 -->
+        <rect x="19" y="16" width="1" height="2" fill="#2c3e50" rx="0.5"/>
+        
+        <!-- 状态指示灯 -->
+        <circle cx="11" cy="15" r="2.5" fill="#fff" stroke="#2c3e50" stroke-width="1"/>
+        <circle cx="11" cy="15" r="1.5" fill="${color === '#67c23a' ? '#27ae60' : '#e74c3c'}"/>
+        
+        <!-- 车牌区域 -->
+        <rect x="4" y="18" width="14" height="3" fill="#fff" stroke="#2c3e50" stroke-width="1" rx="0.5"/>
+        <text x="11" y="20.5" text-anchor="middle" font-family="Arial" font-size="6" fill="#2c3e50">GPS</text>
       </svg>
     `
     return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)))
@@ -315,17 +343,11 @@ export class BaiduMapUtils {
   createInfoWindow(device) {
     if (!this.BMap) return null
 
-    const content = `
-      <div style="padding: 10px; min-width: 250px;">
-        <h4 style="margin: 0 0 10px 0; color: #333;">${device.device_alias || device.device_number}</h4>
-        <p style="margin: 5px 0;"><strong>设备号:</strong> ${device.device_number}</p>
-        <p style="margin: 5px 0;"><strong>状态:</strong> 
-          <span style="color: ${device.status === 'online' ? '#67c23a' : '#f56c6c'};">
-            ${device.status === 'online' ? '在线' : '离线'}
-          </span>
-        </p>
-        <p style="margin: 5px 0;"><strong>电量:</strong> ${device.battery_level || 0}%</p>
-        <p style="margin: 5px 0;"><strong>最后更新:</strong> ${device.last_update_time ? new Date(device.last_update_time).toLocaleString('zh-CN', {
+    // 格式化时间显示
+    const formatTime = (timeString) => {
+      if (!timeString) return '暂无'
+      try {
+        return new Date(timeString).toLocaleString('zh-CN', {
           timeZone: 'Asia/Shanghai',
           year: 'numeric',
           month: '2-digit',
@@ -334,14 +356,38 @@ export class BaiduMapUtils {
           minute: '2-digit',
           second: '2-digit',
           hour12: false
-        }) : '暂无'}</p>
-        <p style="margin: 5px 0;"><strong>地址:</strong> ${device.address || '地址解析中...'}</p>
+        })
+      } catch (error) {
+        console.error('时间格式化失败:', error)
+        return '时间格式错误'
+      }
+    }
+
+    const content = `
+      <div style="padding: 15px; min-width: 280px; font-family: 'Microsoft YaHei', Arial, sans-serif;">
+        <div style="border-bottom: 1px solid #e4e7ed; padding-bottom: 10px; margin-bottom: 15px;">
+          <h4 style="margin: 0; color: #303133; font-size: 16px; font-weight: 600;">轨迹点详情</h4>
+        </div>
+        <div style="line-height: 1.8;">
+          <div style="margin-bottom: 12px;">
+            <span style="color: #606266; font-weight: 500;">设备号:</span>
+            <span style="color: #303133; margin-left: 8px;">${device.device_number || '未知设备'}</span>
+          </div>
+          <div style="margin-bottom: 12px;">
+            <span style="color: #606266; font-weight: 500;">地址:</span>
+            <span style="color: #303133; margin-left: 8px; word-break: break-all;">${device.address || '地址解析中...'}</span>
+          </div>
+          <div style="margin-bottom: 0;">
+            <span style="color: #606266; font-weight: 500;">最后更新时间:</span>
+            <span style="color: #303133; margin-left: 8px;">${formatTime(device.timestamp || device.last_update_time)}</span>
+          </div>
+        </div>
       </div>
     `
 
     return new this.BMap.InfoWindow(content, {
-      width: 280,
-      height: 220,
+      width: 320,
+      height: 180,
       enableMessage: false
     })
   }
@@ -431,6 +477,123 @@ export class BaiduMapUtils {
       this.map.centerAndZoom(point, zoom)
     } else {
       this.map.setCenter(point)
+    }
+  }
+
+  /**
+   * 根据轨迹点自动调整地图视野
+   * @param {Array} trackPoints 轨迹点数组 [{lng, lat}, ...]
+   * @param {Object} options 选项 {padding: 50, minZoom: 8, maxZoom: 18}
+   */
+  fitTrackBounds(trackPoints, options = {}) {
+    if (!this.map || !this.BMap || !trackPoints || trackPoints.length === 0) {
+      console.log('无法调整地图视野:', { map: !!this.map, BMap: !!this.BMap, trackPointsLength: trackPoints?.length })
+      return
+    }
+
+    const { padding = 50, minZoom = 8, maxZoom = 18 } = options
+
+    try {
+      // 转换所有轨迹点坐标
+      const bdPoints = trackPoints.map(point => {
+        const bdCoords = CoordinateConverter.wgs84ToBd09(point.lng, point.lat)
+        return new this.BMap.Point(bdCoords.lng, bdCoords.lat)
+      })
+
+      console.log('转换后的轨迹点数量:', bdPoints.length)
+
+      // 计算边界
+      let minLng = bdPoints[0].lng
+      let maxLng = bdPoints[0].lng
+      let minLat = bdPoints[0].lat
+      let maxLat = bdPoints[0].lat
+
+      bdPoints.forEach(point => {
+        minLng = Math.min(minLng, point.lng)
+        maxLng = Math.max(maxLng, point.lng)
+        minLat = Math.min(minLat, point.lat)
+        maxLat = Math.max(maxLat, point.lat)
+      })
+
+      console.log('轨迹点边界:', { minLng, maxLng, minLat, maxLat })
+
+      // 创建边界对象
+      const sw = new this.BMap.Point(minLng, minLat) // 西南角
+      const ne = new this.BMap.Point(maxLng, maxLat) // 东北角
+      const bounds = new this.BMap.Bounds(sw, ne)
+
+      console.log('创建的地图边界:', bounds)
+
+      // 如果只有一个点，设置合适的缩放级别
+      if (trackPoints.length === 1) {
+        const centerPoint = bdPoints[0]
+        this.map.centerAndZoom(centerPoint, 15)
+        console.log('单点轨迹，设置中心点和缩放级别15')
+        return
+      }
+
+      // 计算中心点
+      const centerLng = (minLng + maxLng) / 2
+      const centerLat = (minLat + maxLat) / 2
+      const centerPoint = new this.BMap.Point(centerLng, centerLat)
+
+      // 计算合适的缩放级别
+      const lngDiff = maxLng - minLng
+      const latDiff = maxLat - minLat
+      const maxDiff = Math.max(lngDiff, latDiff)
+
+      console.log('坐标差值计算:', { lngDiff, latDiff, maxDiff })
+
+      let zoom = 18
+      if (maxDiff > 50) zoom = 4
+      else if (maxDiff > 20) zoom = 5
+      else if (maxDiff > 10) zoom = 6
+      else if (maxDiff > 5) zoom = 7
+      else if (maxDiff > 2) zoom = 8
+      else if (maxDiff > 1) zoom = 9
+      else if (maxDiff > 0.5) zoom = 10
+      else if (maxDiff > 0.2) zoom = 11
+      else if (maxDiff > 0.1) zoom = 12
+      else if (maxDiff > 0.05) zoom = 13
+      else if (maxDiff > 0.02) zoom = 14
+      else if (maxDiff > 0.01) zoom = 15
+      else if (maxDiff > 0.005) zoom = 16
+      else if (maxDiff > 0.002) zoom = 17
+
+      // 限制缩放级别范围
+      zoom = Math.max(minZoom, Math.min(maxZoom, zoom))
+
+      console.log('计算的地图中心点和缩放级别:', { centerLng, centerLat, zoom, maxDiff })
+
+      // 直接使用setViewport方法，让百度地图自动计算最佳视野
+      console.log('使用setViewport方法调整地图视野')
+      this.map.setViewport(bdPoints, { 
+        margins: [padding, padding, padding, padding],
+        zoomFactor: 0.8  // 稍微缩小一点，确保所有点都在视野内
+      })
+      
+      // 如果setViewport没有生效，使用备用方案
+      setTimeout(() => {
+        const currentZoom = this.map.getZoom()
+        console.log('当前地图缩放级别:', currentZoom)
+        
+        // 如果缩放级别还是太大，手动调整
+        if (currentZoom > 10) {
+          console.log('缩放级别过大，手动调整到合适级别')
+          this.map.centerAndZoom(centerPoint, Math.max(minZoom, 6))
+        }
+        
+        console.log('地图视野调整完成')
+      }, 200)
+
+    } catch (error) {
+      console.error('调整地图视野失败:', error)
+      // 降级处理：使用第一个点作为中心
+      if (trackPoints.length > 0) {
+        const firstPoint = trackPoints[0]
+        this.setCenter({ lng: firstPoint.lng, lat: firstPoint.lat }, 12)
+        console.log('降级处理：使用第一个轨迹点作为中心')
+      }
     }
   }
 

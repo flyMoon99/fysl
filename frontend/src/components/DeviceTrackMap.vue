@@ -1,7 +1,7 @@
 <template>
   <div class="device-track-map">
     <!-- 轨迹控制面板 -->
-    <div class="track-controls" v-if="!props.hideTimeControls">
+    <div class="track-controls" v-if="!props.hideTimeControls && !props.floatingTimeSelector">
       <!-- 时间选择器 -->
       <div class="time-selector" v-if="!props.hideTimeControls">
         <el-form :inline="true" size="small">
@@ -50,7 +50,7 @@
       </div>
 
       <!-- 播放控制 -->
-      <div class="playback-controls" v-if="trackData.length > 0 && !props.hideTrackStats">
+      <div class="playback-controls" v-if="trackData.length > 0 && !props.hidePlaybackControls">
         <el-button-group size="small">
           <el-button 
             @click="togglePlayback"
@@ -82,12 +82,44 @@
     </div>
 
     <!-- 地图容器 -->
-    <div class="map-wrapper">
+    <div class="map-wrapper" :class="{ 'with-floating-controls': props.floatingTimeSelector }">
+      <!-- 悬浮的时间选择器 -->
+      <div class="floating-time-selector" v-if="props.floatingTimeSelector && !props.hideTimeControls">
+        <el-form :inline="true" size="small">
+          <el-form-item>
+            <el-date-picker
+              v-model="timeRange"
+              type="datetimerange"
+              range-separator="至"
+              start-placeholder="开始时间"
+              end-placeholder="结束时间"
+              format="YYYY-MM-DD HH:mm:ss"
+              value-format="YYYY-MM-DD HH:mm:ss"
+              :disabled-date="disabledDate"
+              :shortcuts="timeShortcuts"
+              @change="handleTimeRangeChange"
+            />
+          </el-form-item>
+          <el-form-item>
+            <el-button 
+              type="primary" 
+              @click="loadTrackData"
+              :loading="loadingTrack"
+              :disabled="!timeRange || timeRange.length !== 2"
+            >
+              <el-icon><Search /></el-icon>
+              查询轨迹
+            </el-button>
+          </el-form-item>
+        </el-form>
+      </div>
+      
       <MapContainer
         ref="mapContainerRef"
         :height="mapHeight"
         :center="mapCenter"
         :zoom="mapZoom"
+        :show-clear-reset-buttons="props.showClearResetButtons"
         @mapReady="handleMapReady"
         @mapClick="handleMapClick"
       />
@@ -160,6 +192,26 @@ const props = defineProps({
   hideTrackStats: {
     type: Boolean,
     default: false
+  },
+  // 是否隐藏播放控制
+  hidePlaybackControls: {
+    type: Boolean,
+    default: false
+  },
+  // 是否将时间选择器悬浮到地图上方
+  floatingTimeSelector: {
+    type: Boolean,
+    default: false
+  },
+  // 是否显示清除和重置按钮
+  showClearResetButtons: {
+    type: Boolean,
+    default: true
+  },
+  // 外部传入的时间范围
+  externalTimeRange: {
+    type: Array,
+    default: () => []
   }
 })
 
@@ -498,21 +550,23 @@ const drawTrackOnMap = () => {
       // 为每个轨迹点添加卡车图标标记
       mapUtils.addDeviceMarker({
         id: `track-point-${index}`,
-        device_number: `轨迹点${index + 1}`,
+        device_number: props.deviceInfo?.device_number || '未知设备',
         status: 'online',
-        timestamp: point.timestamp
+        timestamp: point.timestamp,
+        address: point.address
       }, {
         lng: point.lng,
         lat: point.lat
       })
     })
 
-    // 设置地图中心为轨迹中心
-    const startPoint = trackData.value[0]
-    const endPoint = trackData.value[trackData.value.length - 1]
-    const centerLat = (startPoint.lat + endPoint.lat) / 2
-    const centerLng = (startPoint.lng + endPoint.lng) / 2
-    mapUtils.setCenter({ lng: centerLng, lat: centerLat }, 13)
+    // 根据轨迹点自动调整地图视野
+    console.log('开始根据轨迹点调整地图视野')
+    mapUtils.fitTrackBounds(trackData.value, {
+      padding: 80,    // 边距
+      minZoom: 8,     // 最小缩放级别
+      maxZoom: 18     // 最大缩放级别
+    })
   }
 }
 
@@ -571,8 +625,10 @@ const updatePlayMarker = () => {
   const currentPoint = currentTrackPoint.value
   playMarker.value = mapUtils.addDeviceMarker({
     id: 'current',
-    device_number: `当前位置 (${currentPlayIndex.value + 1}/${trackData.value.length})`,
-    status: 'online'
+    device_number: props.deviceInfo?.device_number || '未知设备',
+    status: 'online',
+    timestamp: currentPoint.timestamp,
+    address: currentPoint.address
   }, {
     lng: currentPoint.longitude,
     lat: currentPoint.latitude
@@ -630,10 +686,11 @@ onMounted(() => {
   console.log('DeviceTrackMap组件初始化，设备ID:', props.deviceId)
   console.log('设备信息:', props.deviceInfo)
   
-  // 设置默认时间范围为今天（使用本地时间，避免时区转换问题）
+  // 设置默认时间范围为最近7天（使用本地时间，避免时区转换问题）
   const now = new Date()
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0)
-  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
+  const start = new Date()
+  start.setTime(start.getTime() - 3600 * 1000 * 24 * 7) // 7天前
+  const end = new Date() // 当前时间
   
   // 直接使用本地时间字符串，不进行时区转换
   timeRange.value = [
@@ -652,7 +709,7 @@ onMounted(() => {
     String(end.getSeconds()).padStart(2, '0')
   ]
   
-  console.log('设置默认时间范围（今天）:', timeRange.value)
+  console.log('设置默认时间范围（最近7天）:', timeRange.value)
   
   // 注意：不在这里自动加载轨迹数据，避免重复加载
   // 轨迹数据将在 handleMapReady 中根据 autoLoad 属性决定是否加载
@@ -671,8 +728,23 @@ watch(() => props.deviceId, () => {
   currentPlayIndex.value = 0
 })
 
+// 监听外部时间范围变化
+watch(() => props.externalTimeRange, (newTimeRange) => {
+  if (newTimeRange && newTimeRange.length === 2) {
+    console.log('外部时间范围变化，更新内部时间范围:', newTimeRange)
+    timeRange.value = [...newTimeRange]
+    
+    // 如果地图已准备就绪且autoLoad为true，自动加载轨迹数据
+    if (mapContainerRef.value && props.autoLoad) {
+      console.log('外部时间范围变化，自动加载轨迹数据')
+      loadTrackData()
+    }
+  }
+}, { deep: true })
+
 // 暴露方法给父组件
 defineExpose({
+  mapContainerRef,
   loadTrackData,
   loadTrackDataWithTimeRange: async (startTime, endTime) => {
     if (!startTime || !endTime) {
@@ -830,6 +902,26 @@ defineExpose({
 .map-wrapper {
   flex: 1;
   min-height: 400px;
+  position: relative;
+}
+
+.map-wrapper.with-floating-controls {
+  padding-top: 0;
+}
+
+.floating-time-selector {
+  position: absolute;
+  top: 15px;
+  left: 80px;  /* 避开左侧的缩放轴 */
+  width: 500px;
+  max-width: calc(100% - 95px);  /* 调整最大宽度，为左侧控件留出空间 */
+  z-index: 1000;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 8px;
+  padding: 10px 14px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .track-point-detail {

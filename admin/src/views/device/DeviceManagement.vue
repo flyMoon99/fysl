@@ -346,29 +346,32 @@
       width="500px"
     >
       <div class="track-sync-form" v-if="currentDevice">
-        <p><strong>设备：</strong>{{ currentDevice.device_number }} - {{ currentDevice.device_alias || '未命名设备' }}</p>
+        <div class="device-info-section">
+          <p><strong>设备：</strong>{{ currentDevice.device_number }} - {{ currentDevice.device_alias || '未命名设备' }}</p>
+          <p><strong>设备最后位置时间：</strong>{{ formatDateTime(currentDevice.last_update_time) || '暂无数据' }}</p>
+        </div>
         
-        <el-form :model="trackForm" label-width="100px">
-          <el-form-item label="时间范围" required>
-            <el-date-picker
-              v-model="trackForm.dateRange"
-              type="datetimerange"
-              range-separator="至"
-              start-placeholder="开始时间"
-              end-placeholder="结束时间"
-              format="YYYY-MM-DD HH:mm:ss"
-              value-format="YYYY-MM-DD HH:mm:ss"
-              :disabled-date="disabledDate"
-              style="width: 100%"
-            />
-          </el-form-item>
+        <el-divider />
+        
+        <div class="track-info-section">
+          <p><strong>即将获取轨迹时间范围：</strong></p>
+          <div class="time-range-display">
+            <el-tag type="primary" size="large">
+              {{ formatDateTime(trackForm.dateRange[0]) }}
+            </el-tag>
+            <span style="margin: 0 10px;">至</span>
+            <el-tag type="primary" size="large">
+              {{ formatDateTime(trackForm.dateRange[1]) }}
+            </el-tag>
+          </div>
+          
           <el-alert
-            title="注意：时间跨度不能超过7天"
-            type="warning"
+            :title="getTrackRangeDescription()"
+            type="info"
             :closable="false"
-            style="margin-bottom: 20px"
+            style="margin-top: 15px"
           />
-        </el-form>
+        </div>
       </div>
       
       <template #footer>
@@ -563,7 +566,16 @@ const assignForm = reactive({
 // 格式化日期时间
 const formatDateTime = (dateString) => {
   if (!dateString) return '暂无数据'
-  return new Date(dateString).toLocaleString('zh-CN')
+  return new Date(dateString).toLocaleString('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  })
 }
 
 // 获取电量样式类
@@ -577,6 +589,32 @@ const getBatteryClass = (batteryLevel) => {
 // 禁用未来日期
 const disabledDate = (time) => {
   return time.getTime() > Date.now()
+}
+
+// 获取轨迹范围描述
+const getTrackRangeDescription = () => {
+  if (!currentDevice.value || !trackForm.dateRange || trackForm.dateRange.length !== 2) {
+    return '正在计算时间范围...'
+  }
+  
+  const startTime = new Date(trackForm.dateRange[0])
+  const endTime = new Date(trackForm.dateRange[1])
+  const diffTime = endTime.getTime() - startTime.getTime()
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  
+  if (currentDevice.value.last_update_time) {
+    const lastUpdateTime = new Date(currentDevice.value.last_update_time)
+    const timeSinceUpdate = endTime.getTime() - lastUpdateTime.getTime()
+    const daysSinceUpdate = Math.ceil(timeSinceUpdate / (1000 * 60 * 60 * 24))
+    
+    if (daysSinceUpdate > 7) {
+      return `设备最后更新时间超过7天，将获取最近7天的轨迹数据（共${diffDays}天）`
+    } else {
+      return `将获取从设备最后更新时间至今的轨迹数据（共${diffDays}天）`
+    }
+  } else {
+    return `设备无最后更新时间记录，将获取最近7天的轨迹数据（共${diffDays}天）`
+  }
 }
 
 // 获取设备列表
@@ -735,14 +773,43 @@ const handleSyncDevices = async () => {
 const showGetTrackDialog = (row) => {
   currentDevice.value = row
   
-  // 设置默认时间范围为最近7天
+  // 根据设备最后更新时间自动计算时间范围
   const endTime = new Date()
-  const startTime = new Date()
-  startTime.setDate(startTime.getDate() - 7)
+  let startTime
+  
+  if (row.last_update_time) {
+    // 使用设备最后更新时间作为起始时间，确保使用正确的时区
+    startTime = new Date(row.last_update_time)
+    
+    // 检查间隔是否超过7天
+    const diffTime = endTime.getTime() - startTime.getTime()
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    
+    if (diffDays > 7) {
+      // 如果超过7天，则取最近7天
+      startTime = new Date()
+      startTime.setDate(startTime.getDate() - 7)
+    }
+  } else {
+    // 如果没有最后更新时间，默认取最近7天
+    startTime = new Date()
+    startTime.setDate(startTime.getDate() - 7)
+  }
+  
+  // 使用本地时间格式，避免时区转换问题
+  const formatLocalDateTime = (date) => {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const hours = String(date.getHours()).padStart(2, '0')
+    const minutes = String(date.getMinutes()).padStart(2, '0')
+    const seconds = String(date.getSeconds()).padStart(2, '0')
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+  }
   
   trackForm.dateRange = [
-    startTime.toISOString().slice(0, 19).replace('T', ' '),
-    endTime.toISOString().slice(0, 19).replace('T', ' ')
+    formatLocalDateTime(startTime),
+    formatLocalDateTime(endTime)
   ]
   
   showTrackDialog.value = true
@@ -752,18 +819,7 @@ const showGetTrackDialog = (row) => {
 const handleSyncTrack = async () => {
   try {
     if (!trackForm.dateRange || trackForm.dateRange.length !== 2) {
-      ElMessage.warning('请选择时间范围')
-      return
-    }
-
-    // 验证时间跨度不超过7天
-    const startTime = new Date(trackForm.dateRange[0])
-    const endTime = new Date(trackForm.dateRange[1])
-    const diffTime = Math.abs(endTime - startTime)
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    
-    if (diffDays > 7) {
-      ElMessage.warning('时间跨度不能超过7天')
+      ElMessage.warning('时间范围计算异常，请重新打开对话框')
       return
     }
 
@@ -1221,5 +1277,52 @@ onMounted(() => {
 
 .device-track-dialog {
   padding: 10px 0;
+}
+
+/* 轨迹同步表单样式 */
+.track-sync-form {
+  padding: 10px 0;
+}
+
+.device-info-section p {
+  margin: 10px 0;
+  color: #303133;
+  font-size: 14px;
+}
+
+.track-info-section {
+  text-align: center;
+}
+
+.track-info-section p {
+  margin: 15px 0 10px 0;
+  color: #303133;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.time-range-display {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 15px 0;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.time-range-display .el-tag {
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+@media (max-width: 480px) {
+  .time-range-display {
+    flex-direction: column;
+    gap: 5px;
+  }
+  
+  .time-range-display span {
+    display: none;
+  }
 }
 </style>

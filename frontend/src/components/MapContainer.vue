@@ -13,6 +13,7 @@
     <div v-if="showToolbar" class="map-toolbar">
       <el-button-group>
         <el-button 
+          v-if="showClearResetButtons"
           size="small" 
           @click="clearMap"
           :disabled="loading"
@@ -21,6 +22,7 @@
           清除
         </el-button>
         <el-button 
+          v-if="showClearResetButtons"
           size="small" 
           @click="resetView"
           :disabled="loading"
@@ -102,6 +104,11 @@ const props = defineProps({
   autoViewport: {
     type: Boolean,
     default: false
+  },
+  // 是否显示清除和重置按钮
+  showClearResetButtons: {
+    type: Boolean,
+    default: true
   }
 })
 

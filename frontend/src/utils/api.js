@@ -68,7 +68,11 @@ api.interceptors.response.use(
           ElMessage.error('权限不足')
           break
         case 404:
-          ElMessage.error('请求的资源不存在')
+          // 检查是否是设备查询相关的404错误，如果是则不显示通用错误提示
+          const isDeviceQueryEndpoint = config.url && config.url.includes('/public/devices/by-number/')
+          if (!isDeviceQueryEndpoint) {
+            ElMessage.error('请求的资源不存在')
+          }
           break
         case 500:
           ElMessage.error('服务器内部错误')
@@ -111,6 +115,7 @@ export const memberAPI = {
   getDeviceDetail: (deviceId) => api.get(`/member/devices/${deviceId}`),
   getDeviceMapData: (deviceId) => api.get(`/member/devices/${deviceId}/map-data`),
   getDeviceTrackPoints: (deviceId, params) => api.get(`/member/devices/${deviceId}/track-points`, { params }),
+  getDeviceLocationHistory: (deviceId, params) => api.get(`/member/devices/${deviceId}/locations`, { params }),
   updateDevice: (deviceId, data) => api.put(`/member/devices/${deviceId}`, data),
   
   // 运单管理
@@ -144,7 +149,13 @@ export const publicAPI = {
   verifyWaybillPassword: (waybillId, passwordData) => api.post(`/public/waybills/${waybillId}/verify-password`, passwordData),
   
   // 获取设备轨迹点数据（公开访问）
-  getDeviceTrackPoints: (deviceId, params) => api.get(`/public/devices/${deviceId}/track-points`, { params })
+  getDeviceTrackPoints: (deviceId, params) => api.get(`/public/devices/${deviceId}/track-points`, { params }),
+  
+  // 根据设备号获取设备信息（公开访问）
+  getDeviceByNumber: (deviceNumber) => api.get(`/public/devices/by-number/${deviceNumber}`),
+  
+  // 获取设备位置历史记录（公开访问）
+  getDeviceLocationHistory: (deviceId, params) => api.get(`/public/devices/${deviceId}/location-history`, { params })
 }
 
 export { api }

@@ -862,6 +862,74 @@ const getMemberDeviceTrackPoints = async (req, res) => {
   }
 };
 
+// 获取会员设备位置历史
+const getMemberDeviceLocationHistory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { page = 1, limit = 50, startDate, endDate } = req.query;
+    const memberId = req.member.id;
+    const offset = (page - 1) * limit;
+
+    // 验证设备权限
+    const device = await Device.findOne({
+      where: {
+        id: id,
+        customer_id: memberId
+      }
+    });
+
+    if (!device) {
+      return res.status(404).json({
+        error: '设备不存在或无权限访问',
+        code: 'DEVICE_NOT_FOUND'
+      });
+    }
+
+    // 构建查询条件
+    const where = { device_id: id };
+    if (startDate && endDate) {
+      where.created_at = {
+        [Op.between]: [new Date(startDate), new Date(endDate)]
+      };
+    }
+
+    const { count, rows } = await Location.findAndCountAll({
+      where,
+      attributes: [
+        'id',
+        'longitude',
+        'latitude', 
+        'coordinate_system',
+        'address',
+        'created_at'
+      ],
+      order: [['created_at', 'DESC']],
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+
+    res.json({
+      message: '获取设备位置历史成功',
+      data: {
+        locations: rows,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: count,
+          totalPages: Math.ceil(count / limit)
+        }
+      }
+    });
+  } catch (error) {
+    console.error('获取会员设备位置历史错误:', error);
+    res.status(500).json({
+      error: '获取设备位置历史失败',
+      code: 'GET_MEMBER_DEVICE_LOCATION_HISTORY_ERROR',
+      details: error.message
+    });
+  }
+};
+
 // 更新设备信息
 const updateMemberDevice = async (req, res) => {
   try {
@@ -930,5 +998,6 @@ module.exports = {
   getMemberDevices,
   getMemberDeviceMapData,
   getMemberDeviceTrackPoints,
+  getMemberDeviceLocationHistory,
   updateMemberDevice
 };

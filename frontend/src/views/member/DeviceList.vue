@@ -76,15 +76,9 @@
             {{ scope.row.last_address || '暂无地址' }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="280">
+        <el-table-column label="操作" width="200">
           <template #default="scope">
             <el-button-group size="small">
-              <el-button
-                type="primary"
-                @click="showDeviceDetail(scope.row)"
-              >
-                详情
-              </el-button>
               <el-button
                 type="success"
                 @click="showEditDialogHandler(scope.row)"
@@ -279,6 +273,7 @@
       </div>
     </el-dialog>
 
+
     <!-- 设备编辑对话框 -->
     <el-dialog
       v-model="showEditDialog"
@@ -333,6 +328,7 @@ import { memberAPI } from '@/utils/api'
 import { ElMessage } from 'element-plus'
 import { Operation, Edit } from '@element-plus/icons-vue'
 import DeviceTrackMap from '@/components/DeviceTrackMap.vue'
+import { CoordinateConverter } from '@/utils/mapUtils'
 
 const loading = ref(false)
 const showDetailDialog = ref(false)
@@ -592,15 +588,93 @@ const selectTrackPoint = (row) => {
   
   // 在地图上高亮显示选中的轨迹点
   if (trackMapRef.value && trackMapRef.value.mapContainerRef) {
+    console.log('地图引用存在:', trackMapRef.value.mapContainerRef)
     const mapUtils = trackMapRef.value.mapContainerRef.mapUtils
+    console.log('地图工具实例:', mapUtils)
+    
     if (mapUtils) {
-      // 设置地图中心到选中的点
+      console.log('开始设置地图中心到轨迹点:', { lng: row.longitude, lat: row.latitude })
+      
+      // 设置地图中心到选中的点，使用合适的缩放级别
       mapUtils.setCenter({
         lng: row.longitude,
         lat: row.latitude
-      }, 15)
+      }, 16)
+      
+      console.log('地图中心设置完成，开始显示信息浮窗')
+      
+      // 在地图上显示该轨迹点的信息浮窗
+      showTrackPointInfoOnMap(mapUtils, row)
+    } else {
+      console.error('地图工具实例不存在')
     }
+  } else {
+    console.error('地图引用不存在:', { 
+      trackMapRef: !!trackMapRef.value, 
+      mapContainerRef: !!trackMapRef.value?.mapContainerRef 
+    })
   }
+}
+
+// 在地图上显示轨迹点信息浮窗
+const showTrackPointInfoOnMap = (mapUtils, trackPoint) => {
+  console.log('开始显示轨迹点信息浮窗:', { mapUtils, trackPoint })
+  
+  if (!mapUtils || !window.BMap) {
+    console.error('地图工具或BMap不可用:', { mapUtils: !!mapUtils, BMap: !!window.BMap })
+    return
+  }
+  
+  // 关闭之前的信息窗口
+  if (mapUtils.map) {
+    mapUtils.map.closeInfoWindow()
+  }
+  
+  // 创建信息窗口内容
+  const content = `
+    <div style="padding: 15px; min-width: 280px; font-family: 'Microsoft YaHei', Arial, sans-serif;">
+      <div style="border-bottom: 1px solid #e4e7ed; padding-bottom: 10px; margin-bottom: 15px;">
+        <h4 style="margin: 0; color: #303133; font-size: 16px; font-weight: 600;">轨迹点详情</h4>
+      </div>
+      <div style="line-height: 1.8;">
+        <div style="margin-bottom: 12px;">
+          <span style="color: #606266; font-weight: 500;">设备号:</span>
+          <span style="color: #303133; margin-left: 8px;">${currentDevice.value?.device_number || '未知设备'}</span>
+        </div>
+        <div style="margin-bottom: 12px;">
+          <span style="color: #606266; font-weight: 500;">地址:</span>
+          <span style="color: #303133; margin-left: 8px; word-break: break-all;">${trackPoint.address || '地址解析中...'}</span>
+        </div>
+        <div style="margin-bottom: 0;">
+          <span style="color: #606266; font-weight: 500;">最后更新时间:</span>
+          <span style="color: #303133; margin-left: 8px;">${formatDateTime(trackPoint.timestamp)}</span>
+        </div>
+      </div>
+    </div>
+  `
+  
+  console.log('创建信息窗口内容:', content)
+  
+  // 创建信息窗口
+  const infoWindow = new window.BMap.InfoWindow(content, {
+    width: 320,
+    height: 180,
+    enableMessage: false
+  })
+  
+  // 转换坐标
+  const bdCoords = CoordinateConverter.wgs84ToBd09(trackPoint.longitude, trackPoint.latitude)
+  const point = new window.BMap.Point(bdCoords.lng, bdCoords.lat)
+  
+  console.log('坐标转换结果:', { 
+    original: { lng: trackPoint.longitude, lat: trackPoint.latitude },
+    converted: bdCoords,
+    point 
+  })
+  
+  // 显示信息窗口
+  mapUtils.map.openInfoWindow(infoWindow, point)
+  console.log('信息窗口已显示')
 }
 
 

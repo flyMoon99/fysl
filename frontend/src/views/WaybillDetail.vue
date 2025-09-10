@@ -110,16 +110,45 @@
           <el-card>
             <template #header>
               <div class="panel-header">
-                <span v-if="selectedDetailIndex === -1">所有设备位置</span>
-                <span v-else>
-                  {{ transportDetails[selectedDetailIndex]?.device?.device_number }} - 最近7天轨迹
-                </span>
-                <el-button-group size="small">
-                  <el-button @click="showAllDevices" :type="selectedDetailIndex === -1 ? 'primary' : ''">
-                    全部位置
-                  </el-button>
-                  <el-button @click="refreshMap" icon="Refresh">刷新</el-button>
-                </el-button-group>
+                <div class="header-left">
+                  <span v-if="selectedDetailIndex === -1">所有设备位置</span>
+                  <span v-else>
+                    {{ transportDetails[selectedDetailIndex]?.device?.device_number }} - 最近7天轨迹
+                  </span>
+                </div>
+                <div class="header-right">
+                  <!-- 查询日期框（仅在选中单个设备时显示） -->
+                  <div v-if="selectedDetailIndex >= 0" class="header-date-selector">
+                    <el-date-picker
+                      v-model="trackTimeRange"
+                      type="datetimerange"
+                      range-separator="至"
+                      start-placeholder="开始时间"
+                      end-placeholder="结束时间"
+                      format="YYYY-MM-DD HH:mm:ss"
+                      value-format="YYYY-MM-DD HH:mm:ss"
+                      size="small"
+                      @change="handleTrackTimeRangeChange"
+                    />
+                    <el-button 
+                      type="primary" 
+                      size="small"
+                      @click="queryTrackData"
+                      :loading="loadingTrack"
+                      :disabled="!trackTimeRange || trackTimeRange.length !== 2"
+                      style="margin-left: 8px;"
+                    >
+                      <el-icon><Search /></el-icon>
+                      查询轨迹
+                    </el-button>
+                  </div>
+                  <el-button-group size="small">
+                    <el-button @click="showAllDevices" :type="selectedDetailIndex === -1 ? 'primary' : ''">
+                      全部位置
+                    </el-button>
+                    <el-button @click="refreshMap" icon="Refresh">刷新</el-button>
+                  </el-button-group>
+                </div>
               </div>
             </template>
             <div class="map-container">
@@ -130,6 +159,12 @@
                 :device-info="transportDetails[selectedDetailIndex].device"
                 :map-height="mapHeight"
                 :auto-load="true"
+                :hide-track-stats="true"
+                :hide-playback-controls="true"
+                :hide-time-controls="true"
+                :floating-time-selector="false"
+                :show-clear-reset-buttons="false"
+                :external-time-range="trackTimeRange"
                 @trackLoaded="handleTrackLoaded"
                 @trackError="handleTrackError"
               />
@@ -193,6 +228,8 @@ const verifying = ref(false)
 const selectedDetailIndex = ref(-1) // -1表示显示所有设备，>=0表示选中的明细索引
 const mapKey = ref(0) // 用于强制重新渲染地图组件
 const mapCenter = ref({ lng: 116.404, lat: 39.915 }) // 默认北京
+const trackTimeRange = ref([]) // 轨迹查询时间范围
+const loadingTrack = ref(false) // 轨迹加载状态
 
 // 计算属性
 const mapHeight = computed(() => '600px')
@@ -259,6 +296,11 @@ const verifyPassword = async () => {
 const selectTransportDetail = (index) => {
   selectedDetailIndex.value = index
   mapKey.value++ // 强制重新渲染地图
+  
+  // 确保时间范围已初始化，如果还没有则初始化
+  if (!trackTimeRange.value || trackTimeRange.value.length === 0) {
+    initializeDefaultTimeRange()
+  }
 }
 
 // 显示所有设备位置
@@ -270,6 +312,48 @@ const showAllDevices = () => {
 // 刷新地图
 const refreshMap = () => {
   mapKey.value++
+}
+
+// 处理轨迹时间范围变化
+const handleTrackTimeRangeChange = (value) => {
+  console.log('轨迹时间范围变化:', value)
+  trackTimeRange.value = value
+}
+
+// 查询轨迹数据
+const queryTrackData = async () => {
+  if (!trackTimeRange.value || trackTimeRange.value.length !== 2) {
+    ElMessage.warning('请选择查询时间范围')
+    return
+  }
+  
+  if (selectedDetailIndex.value < 0) {
+    ElMessage.warning('请先选择设备')
+    return
+  }
+  
+  try {
+    loadingTrack.value = true
+    console.log('开始查询轨迹数据:', {
+      deviceId: transportDetails.value[selectedDetailIndex.value].device_id,
+      timeRange: trackTimeRange.value
+    })
+    
+    // 这里可以调用API查询轨迹数据
+    // 或者通过ref调用DeviceTrackMap组件的方法
+    const deviceTrackMapRef = document.querySelector('.device-track-map')
+    if (deviceTrackMapRef && deviceTrackMapRef.__vueParentComponent) {
+      // 触发地图组件重新加载轨迹数据
+      mapKey.value++
+    }
+    
+    ElMessage.success('轨迹查询成功')
+  } catch (error) {
+    console.error('查询轨迹失败:', error)
+    ElMessage.error('轨迹查询失败')
+  } finally {
+    loadingTrack.value = false
+  }
 }
 
 // 处理轨迹加载成功
@@ -285,39 +369,81 @@ const handleTrackError = (error) => {
 
 // 处理所有设备地图准备就绪
 const handleAllDevicesMapReady = (mapInstance) => {
-  if (transportDetails.value.length > 0) {
-    // 在地图上显示所有设备的最后位置
-    const mapUtils = mapInstance.mapUtils
-    if (mapUtils) {
-      transportDetails.value.forEach((detail, index) => {
-        if (detail.device && detail.device.last_longitude && detail.device.last_latitude) {
-          mapUtils.addDeviceMarker(
-            {
-              id: detail.device_id,
-              device_number: detail.device.device_number,
-              status: 'online' // 假设在线状态
-            },
-            {
+  console.log('运单详情页：地图准备就绪，开始处理设备数据')
+  console.log('运输明细数据:', transportDetails.value)
+  console.log('运输明细数量:', transportDetails.value.length)
+  
+  // 延迟执行，确保数据完全加载
+  setTimeout(() => {
+    if (transportDetails.value.length > 0) {
+      // 在地图上显示所有设备的最后位置
+      const mapUtils = mapInstance.mapUtils
+      if (mapUtils) {
+        console.log('地图工具可用，开始添加设备标记')
+        const devicePoints = []
+        
+        transportDetails.value.forEach((detail, index) => {
+          console.log(`处理设备 ${index + 1}:`, detail)
+          
+          if (detail.device && detail.device.last_longitude && detail.device.last_latitude) {
+            console.log(`设备 ${detail.device.device_number} 坐标:`, {
               lng: detail.device.last_longitude,
               lat: detail.device.last_latitude
-            }
-          )
+            })
+            
+            // 添加设备标记
+            mapUtils.addDeviceMarker(
+              {
+                id: detail.device_id,
+                device_number: detail.device.device_number,
+                status: detail.device.status || 'online',
+                timestamp: detail.device.last_update_time,
+                address: detail.address || '地址解析中...'
+              },
+              {
+                lng: parseFloat(detail.device.last_longitude),
+                lat: parseFloat(detail.device.last_latitude)
+              }
+            )
+            
+            // 收集设备坐标点用于自动调整视野
+            devicePoints.push({
+              lng: parseFloat(detail.device.last_longitude),
+              lat: parseFloat(detail.device.last_latitude)
+            })
+          } else {
+            console.log(`设备 ${index + 1} 缺少坐标信息:`, {
+              hasDevice: !!detail.device,
+              hasLongitude: !!detail.device?.last_longitude,
+              hasLatitude: !!detail.device?.last_latitude
+            })
+          }
+        })
+        
+        console.log('收集到的设备坐标点:', devicePoints)
+        
+        // 根据设备分布自动调整地图视野
+        if (devicePoints.length > 0) {
+          console.log('运单详情页：开始根据设备分布调整地图视野，设备数量:', devicePoints.length)
+          mapUtils.fitTrackBounds(devicePoints, {
+            padding: 100,    // 边距
+            minZoom: 6,      // 最小缩放级别（适合大范围分布）
+            maxZoom: 16      // 最大缩放级别
+          })
+        } else {
+          console.log('没有有效的设备坐标点，无法调整地图视野')
         }
-      })
-      
-      // 如果有设备位置，调整地图视野
-      const firstDevice = transportDetails.value.find(d => 
-        d.device?.last_longitude && d.device?.last_latitude
-      )
-      if (firstDevice) {
-        mapCenter.value = {
-          lng: firstDevice.device.last_longitude,
-          lat: firstDevice.device.last_latitude
-        }
-        mapUtils.setCenter(mapCenter.value, 12)
+      } else {
+        console.error('地图工具不可用')
       }
+    } else {
+      console.log('没有运输明细数据，等待数据加载...')
+      // 如果数据还没加载，再次尝试
+      setTimeout(() => {
+        handleAllDevicesMapReady(mapInstance)
+      }, 1000)
     }
-  }
+  }, 500)
 }
 
 // 加载运单详情
@@ -464,8 +590,40 @@ const createMockResponse = (waybillId) => {
   }
 }
 
+// 初始化默认时间范围（最近7天）
+const initializeDefaultTimeRange = () => {
+  const now = new Date()
+  const start = new Date()
+  start.setTime(start.getTime() - 3600 * 1000 * 24 * 7) // 7天前
+  
+  // 设置开始时间为7天前的00:00:00
+  start.setHours(0, 0, 0, 0)
+  
+  // 设置结束时间为当前时间
+  now.setHours(23, 59, 59, 999)
+  
+  trackTimeRange.value = [
+    start.getFullYear() + '-' + 
+    String(start.getMonth() + 1).padStart(2, '0') + '-' + 
+    String(start.getDate()).padStart(2, '0') + ' ' +
+    String(start.getHours()).padStart(2, '0') + ':' +
+    String(start.getMinutes()).padStart(2, '0') + ':' +
+    String(start.getSeconds()).padStart(2, '0'),
+    
+    now.getFullYear() + '-' + 
+    String(now.getMonth() + 1).padStart(2, '0') + '-' + 
+    String(now.getDate()).padStart(2, '0') + ' ' +
+    String(now.getHours()).padStart(2, '0') + ':' +
+    String(now.getMinutes()).padStart(2, '0') + ':' +
+    String(now.getSeconds()).padStart(2, '0')
+  ]
+  
+  console.log('初始化默认时间范围（最近7天）:', trackTimeRange.value)
+}
+
 // 页面加载时获取运单详情
 onMounted(() => {
+  initializeDefaultTimeRange()
   loadWaybillDetail()
 })
 </script>
@@ -572,6 +730,25 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   font-weight: bold;
+  gap: 20px;
+}
+
+.header-left {
+  flex-shrink: 0;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.header-date-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .count {

@@ -21,6 +21,9 @@ router.get('/devices/:id/map-data', authenticateMember, memberController.getMemb
 // 获取会员设备轨迹点数据（更具体的路由放在前面）
 router.get('/devices/:id/track-points', authenticateMember, memberController.getMemberDeviceTrackPoints);
 
+// 获取会员设备位置历史（更具体的路由放在前面）
+router.get('/devices/:id/locations', authenticateMember, memberController.getMemberDeviceLocationHistory);
+
 // 获取会员设备详情（通用路由放在最后）
 router.get('/devices/:id', authenticateMember, memberController.getMemberDeviceDetail);
 

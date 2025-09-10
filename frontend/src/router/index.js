@@ -35,6 +35,24 @@ const routes = [
     }
   },
   {
+    path: '/device-query',
+    name: 'DeviceQuery',
+    component: () => import('@/views/DeviceQuery.vue'),
+    meta: {
+      title: '设备查询 - 福佑丝路',
+      requiresAuth: false
+    }
+  },
+  {
+    path: '/device-query-result/:deviceNumber',
+    name: 'DeviceQueryResult',
+    component: () => import('@/views/DeviceQueryResult.vue'),
+    meta: {
+      title: '设备轨迹查询结果 - 福佑丝路',
+      requiresAuth: false
+    }
+  },
+  {
     path: '/member',
     name: 'MemberCenter',
     component: () => import('@/views/member/MemberCenter.vue'),
