@@ -231,17 +231,44 @@ class DeviceSyncService {
             time: latestPoint.created_at
           });
           
+          // 为最新轨迹点获取地址信息
+          let latestAddress = null;
+          if (baiduGeocodingService.isAvailable()) {
+            try {
+              console.log(`[轨迹同步] 为最新轨迹点解析地址，坐标: ${latestPoint.longitude}, ${latestPoint.latitude}`);
+              const geocodeResult = await baiduGeocodingService.reverseGeocode(
+                latestPoint.longitude, 
+                latestPoint.latitude, 
+                latestPoint.coordinate_system === 'WGS-84' ? 'wgs84ll' : 'gcj02ll'
+              );
+              latestAddress = geocodeResult.address;
+              console.log(`[轨迹同步] 最新轨迹点地址解析成功: ${latestAddress}`);
+              
+              // 确保地址是中文格式
+              if (latestAddress && !/[\u4e00-\u9fa5]/.test(latestAddress)) {
+                console.log(`[轨迹同步] 最新轨迹点地址非中文格式，使用备用方案: ${latestAddress}`);
+                latestAddress = this.getLocationByCoordinate(latestPoint.longitude, latestPoint.latitude);
+              }
+            } catch (geocodeError) {
+              console.error(`[轨迹同步] 最新轨迹点地址解析失败:`, geocodeError.message);
+              latestAddress = this.getLocationByCoordinate(latestPoint.longitude, latestPoint.latitude);
+            }
+          } else {
+            console.warn(`[轨迹同步] 百度地图服务不可用，使用坐标范围判断最新轨迹点地理位置`);
+            latestAddress = this.getLocationByCoordinate(latestPoint.longitude, latestPoint.latitude);
+          }
+          
           // 更新设备表中的最新位置信息
           await Device.update({
             last_longitude: latestPoint.longitude,
             last_latitude: latestPoint.latitude,
             last_update_time: latestPoint.created_at,
-            last_address: latestPoint.address || null
+            last_address: latestAddress
           }, {
             where: { id: device.id }
           });
           
-          console.log(`[轨迹同步] 设备 ${deviceNumber} 最新位置信息更新成功`);
+          console.log(`[轨迹同步] 设备 ${deviceNumber} 最新位置信息更新成功，地址: ${latestAddress}`);
         } catch (updateError) {
           console.error(`[轨迹同步] 更新设备最新位置信息失败:`, updateError);
           // 不影响整体同步结果，只记录错误
