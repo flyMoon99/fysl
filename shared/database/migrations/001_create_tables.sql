@@ -80,6 +80,7 @@ CREATE TABLE IF NOT EXISTS gps_locations (
     longitude DECIMAL(10, 7) NOT NULL, -- 经度，精度到7位小数
     latitude DECIMAL(10, 7) NOT NULL, -- 纬度，精度到7位小数
     coordinate_system VARCHAR(10) NOT NULL DEFAULT 'WGS-84' CHECK (coordinate_system IN ('WGS-84', 'GCJ-02')), -- 坐标系：WGS-84-国际标准，GCJ-02-国测局标准
+    address TEXT, -- 逆向地理编码得到的详细地址信息
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 定位数据添加时间
 );
 
@@ -90,6 +91,7 @@ CREATE INDEX IF NOT EXISTS idx_gps_devices_status ON gps_devices(status); -- 设
 CREATE INDEX IF NOT EXISTS idx_gps_devices_last_update_time ON gps_devices(last_update_time); -- 最后更新时间索引，加速时间范围查询
 CREATE INDEX IF NOT EXISTS idx_gps_locations_device_id ON gps_locations(device_id); -- 设备ID索引，加速关联查询
 CREATE INDEX IF NOT EXISTS idx_gps_locations_created_at ON gps_locations(created_at); -- 定位时间索引，加速时间范围查询
+CREATE INDEX IF NOT EXISTS idx_gps_locations_device_time ON gps_locations(device_id, created_at); -- 设备时间复合索引，加速设备轨迹查询
 
 -- 为GPS设备表添加更新时间触发器
 CREATE TRIGGER update_gps_devices_updated_at BEFORE UPDATE ON gps_devices FOR EACH ROW EXECUTE FUNCTION update_updated_at_column(); -- GPS设备表更新时间触发器
@@ -98,34 +100,35 @@ CREATE TRIGGER update_gps_devices_updated_at BEFORE UPDATE ON gps_devices FOR EA
 --6 运单表
 CREATE TABLE waybills (
     id SERIAL PRIMARY KEY,
-    waybill_number VARCHAR(100) NOT NULL UNIQUE COMMENT '运单号',
-    waybill_remarks TEXT COMMENT '运单备注',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    created_by VARCHAR(100) NOT NULL COMMENT '创建人',
-    view_password VARCHAR(255) COMMENT '查看密码'
+    waybill_number VARCHAR(100) NOT NULL UNIQUE, -- 运单号
+    waybill_remarks TEXT, -- 运单备注
+    create_by VARCHAR(100) NOT NULL, -- 创建人
+    waybill_password VARCHAR(255), -- 运单密码
+    status VARCHAR(10) NOT NULL DEFAULT '正常' CHECK (status IN ('正常', '关闭')), -- 状态：正常-启用，关闭-禁用
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 创建时间
 );
 
 --7 运输明细表
 CREATE TABLE transport_details (
     id SERIAL PRIMARY KEY,
-    waybill_id INTEGER NOT NULL COMMENT '运单id',
-    waybill_number VARCHAR(100) NOT NULL COMMENT '运单号',
-    device_id INTEGER NOT NULL COMMENT '设备id',
-    longitude DECIMAL(10, 7) COMMENT '经度',
-    latitude DECIMAL(10, 7) COMMENT '纬度',
-    location VARCHAR(255) COMMENT '位置',
-    last_update_time TIMESTAMP COMMENT '最后更新时间',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    transport_remarks TEXT COMMENT '运输备注',
-    license_plate VARCHAR(20) COMMENT '车牌号',
+    waybill_id INTEGER NOT NULL, -- 运单id
+    waybill_number VARCHAR(100) NOT NULL, -- 运单号
+    device_id INTEGER NOT NULL, -- 设备id
+    longitude DECIMAL(10, 7), -- 经度
+    latitude DECIMAL(10, 7), -- 纬度
+    address VARCHAR(255), -- 地址
+    last_update_time TIMESTAMP, -- 最后更新时间
+    transport_remarks TEXT, -- 运输备注
+    license_plate VARCHAR(20), -- 车牌号
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- 创建时间
     
     -- 外键约束
     FOREIGN KEY (waybill_id) REFERENCES waybills(id) ON DELETE CASCADE,
-    FOREIGN KEY (device_id) REFERENCES gps_devices(id) ON DELETE CASCADE,
-    
-    -- 索引
-    INDEX idx_waybill_id (waybill_id),
-    INDEX idx_device_id (device_id),
-    INDEX idx_waybill_number (waybill_number),
-    INDEX idx_created_at (created_at)
+    FOREIGN KEY (device_id) REFERENCES gps_devices(id) ON DELETE CASCADE
 );
+
+-- 运输明细表索引 - 优化查询性能
+CREATE INDEX IF NOT EXISTS idx_transport_details_waybill_id ON transport_details(waybill_id); -- 运单ID索引，加速运单查询
+CREATE INDEX IF NOT EXISTS idx_transport_details_device_id ON transport_details(device_id); -- 设备ID索引，加速设备查询
+CREATE INDEX IF NOT EXISTS idx_transport_details_waybill_number ON transport_details(waybill_number); -- 运单号索引，加速运单号查询
+CREATE INDEX IF NOT EXISTS idx_transport_details_created_at ON transport_details(created_at); -- 创建时间索引，加速时间范围查询
