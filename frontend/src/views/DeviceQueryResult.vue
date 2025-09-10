@@ -88,7 +88,7 @@
                   {{ location.address || '地址解析中...' }}
                 </div>
                 <div class="location-time">
-                  {{ formatDateTime(location.created_at) }}
+                  {{ formatDateTime(location.timestamp) }}
                 </div>
               </div>
             </div>
@@ -348,7 +348,7 @@ const drawTrackOnMap = () => {
     lat: parseFloat(location.latitude),
     longitude: parseFloat(location.longitude),
     latitude: parseFloat(location.latitude),
-    timestamp: location.created_at,
+    timestamp: location.timestamp,
     address: location.address
   }))
 

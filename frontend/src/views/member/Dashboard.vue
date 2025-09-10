@@ -26,6 +26,32 @@
       </div>
     </div>
 
+    <!-- 会员统计 -->
+    <div class="member-stats">
+      <h2>会员统计</h2>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon">
+            <el-icon size="32" color="#409eff"><Monitor /></el-icon>
+          </div>
+          <div class="stat-content">
+            <h3>我的设备数</h3>
+            <p>{{ deviceCount }} 台</p>
+          </div>
+        </div>
+        
+        <div class="stat-card">
+          <div class="stat-icon">
+            <el-icon size="32" color="#e6a23c"><Document /></el-icon>
+          </div>
+          <div class="stat-content">
+            <h3>我的运单数</h3>
+            <p>{{ waybillCount }} 单</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 快速操作 -->
     <div class="quick-actions">
       <h2>快速操作</h2>
@@ -52,12 +78,14 @@ import { ref, onMounted } from 'vue'
 import { useUserStore } from '@/store/user'
 import { memberAPI } from '@/utils/api'
 import { ElMessage } from 'element-plus'
-import { Clock, User, Calendar, View } from '@element-plus/icons-vue'
+import { Clock, User, Calendar, View, Monitor, Document } from '@element-plus/icons-vue'
 
 const userStore = useUserStore()
 const loading = ref(false)
 const recentLogins = ref([])
 const loginCount = ref(0)
+const deviceCount = ref(0)
+const waybillCount = ref(0)
 
 // 格式化日期
 const formatDate = (dateString) => {
@@ -102,8 +130,36 @@ const fetchLoginHistory = async () => {
   }
 }
 
+// 获取设备统计
+const fetchDeviceStats = async () => {
+  try {
+    const response = await memberAPI.getDevices({ page: 1, limit: 1 })
+    if (response.data && response.data.data) {
+      deviceCount.value = response.data.data.pagination.total
+    }
+  } catch (error) {
+    console.error('获取设备统计失败:', error)
+    // 不显示错误消息，避免影响用户体验
+  }
+}
+
+// 获取运单统计
+const fetchWaybillStats = async () => {
+  try {
+    const response = await memberAPI.getWaybills({ page: 1, limit: 1 })
+    if (response.data && response.data.data) {
+      waybillCount.value = response.data.data.pagination.total
+    }
+  } catch (error) {
+    console.error('获取运单统计失败:', error)
+    // 不显示错误消息，避免影响用户体验
+  }
+}
+
 onMounted(() => {
   fetchLoginHistory()
+  fetchDeviceStats()
+  fetchWaybillStats()
 })
 </script>
 
@@ -163,6 +219,18 @@ onMounted(() => {
   font-weight: bold;
   color: #303133;
   margin: 0;
+}
+
+/* 会员统计 */
+.member-stats {
+  margin-bottom: 40px;
+}
+
+.member-stats h2 {
+  font-size: 20px;
+  font-weight: bold;
+  margin-bottom: 20px;
+  color: #303133;
 }
 
 /* 快速操作 */

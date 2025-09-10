@@ -74,12 +74,7 @@
           </el-form>
           
           <div class="form-footer">
-            <div class="quick-links">
-              <router-link to="/login" class="quick-link">
-                <el-icon><User /></el-icon>
-                会员登录
-              </router-link>
-            </div>
+            
             <p class="copyright">
               © 2024 福佑丝路 GPS跟踪系统 v2.1.0<br>
               技术支持：福佑丝路科技有限公司
@@ -146,9 +141,10 @@ const handleQuery = async () => {
   } catch (error) {
     console.error('查询设备失败:', error)
     
-    // 如果是表单验证错误，不显示通用错误信息
-    if (error.name === 'ValidationError' || error.message?.includes('validation')) {
-      // 表单验证错误，Element Plus会自动显示验证信息，这里不需要额外处理
+    // 检查是否是表单验证错误
+    // Element Plus的表单验证错误通常没有response属性
+    if (!error.response) {
+      // 没有response属性，通常是表单验证错误，Element Plus会自动显示验证信息
       return
     }
     
