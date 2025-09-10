@@ -98,6 +98,11 @@ const Device = sequelize.define('Device', {
       min: -90,
       max: 90
     }
+  },
+  last_address: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    comment: '最后一次上报的地址信息，通过逆向地理编码获得'
   }
 }, {
   tableName: 'gps_devices',

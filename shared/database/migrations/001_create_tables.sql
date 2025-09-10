@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS gps_devices (
     last_update_time TIMESTAMP, -- 最后更新时间，设备最后一次上报数据的时间
     last_longitude DECIMAL(10, 7), -- 最后一次上报的经度，精度到7位小数
     last_latitude DECIMAL(10, 7), -- 最后一次上报的纬度，精度到7位小数
+    last_address TEXT, -- 最后一次上报的地址信息，通过逆向地理编码获得
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- 设备创建时间
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 设备信息最后更新时间
 );

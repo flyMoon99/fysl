@@ -87,6 +87,7 @@ const getDeviceList = async (req, res) => {
         'last_update_time',
         'last_longitude',
         'last_latitude',
+        'last_address',
         'created_at',
         'updated_at'
       ],
@@ -506,7 +507,8 @@ const getDeviceMapData = async (req, res) => {
         'customer_id',
         'last_update_time',
         'last_longitude',
-        'last_latitude'
+        'last_latitude',
+        'last_address'
       ]
     });
 
@@ -693,7 +695,8 @@ const getMultipleDevicesMapData = async (req, res) => {
         'battery_level',
         'last_update_time',
         'last_longitude',
-        'last_latitude'
+        'last_latitude',
+        'last_address'
       ]
     });
 
@@ -790,6 +793,7 @@ const getDeviceByNumber = async (req, res) => {
         last_update_time: device.last_update_time,
         last_longitude: device.last_longitude,
         last_latitude: device.last_latitude,
+        last_address: device.last_address,
         created_at: device.created_at
       }
     });

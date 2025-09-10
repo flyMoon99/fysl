@@ -593,18 +593,9 @@ const getMemberDevices = async (req, res) => {
         'last_update_time',
         'last_longitude',
         'last_latitude',
+        'last_address',
         'created_at',
         'updated_at'
-      ],
-      include: [
-        {
-          model: Location,
-          as: 'locations',
-          attributes: ['address'],
-          required: false,
-          limit: 1,
-          order: [['created_at', 'DESC']]
-        }
       ],
       order: [['id', 'DESC']], // 按设备ID倒序排列
       limit: parseInt(limit),
@@ -635,15 +626,10 @@ const getMemberDevices = async (req, res) => {
     // 执行查询
     const { count, rows } = await Device.findAndCountAll(queryOptions);
 
-    // 处理返回数据，添加最后地址信息
+    // 处理返回数据，直接使用last_address字段
     const processedDevices = rows.map(device => {
       const deviceData = device.toJSON();
-      // 从关联的locations中获取最新地址
-      deviceData.last_address = deviceData.locations && deviceData.locations.length > 0 
-        ? deviceData.locations[0].address 
-        : null;
-      // 删除locations数组，因为前端不需要
-      delete deviceData.locations;
+      // last_address字段已经在查询中包含了，无需额外处理
       return deviceData;
     });
 

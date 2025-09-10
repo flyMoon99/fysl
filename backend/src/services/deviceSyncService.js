@@ -235,7 +235,8 @@ class DeviceSyncService {
           await Device.update({
             last_longitude: latestPoint.longitude,
             last_latitude: latestPoint.latitude,
-            last_update_time: latestPoint.created_at
+            last_update_time: latestPoint.created_at,
+            last_address: latestPoint.address || null
           }, {
             where: { id: device.id }
           });
@@ -285,19 +286,9 @@ class DeviceSyncService {
 
       const locationData = locationResult.data;
 
-      // 更新设备的最后位置信息
-      await device.update({
-        status: locationData.status === '1' ? 'online' : 'offline',
-        battery_level: Math.round(parseFloat(locationData.soc || 0)),
-        last_update_time: locationData.lastUploadTime ? new Date(locationData.lastUploadTime) : new Date(),
-        last_longitude: parseFloat(locationData.longitude || 0),
-        last_latitude: parseFloat(locationData.latitude || 0)
-      });
-
-      // 创建新的位置记录
+      // 获取地址信息（如果百度地图服务可用）
+      let address = null;
       if (locationData.longitude && locationData.latitude) {
-        // 获取地址信息（如果百度地图服务可用）
-        let address = null;
         console.log(`[位置同步] 检查百度地图服务可用性: ${baiduGeocodingService.isAvailable()}`);
         
         if (baiduGeocodingService.isAvailable()) {
@@ -326,7 +317,20 @@ class DeviceSyncService {
           console.warn(`[位置同步] 百度地图服务不可用，使用坐标范围判断地理位置`);
           address = this.getLocationByCoordinate(parseFloat(locationData.longitude), parseFloat(locationData.latitude));
         }
+      }
 
+      // 更新设备的最后位置信息
+      await device.update({
+        status: locationData.status === '1' ? 'online' : 'offline',
+        battery_level: Math.round(parseFloat(locationData.soc || 0)),
+        last_update_time: locationData.lastUploadTime ? new Date(locationData.lastUploadTime) : new Date(),
+        last_longitude: parseFloat(locationData.longitude || 0),
+        last_latitude: parseFloat(locationData.latitude || 0),
+        last_address: address
+      });
+
+      // 创建新的位置记录
+      if (locationData.longitude && locationData.latitude) {
         await Location.create({
           device_id: device.id,
           longitude: parseFloat(locationData.longitude),

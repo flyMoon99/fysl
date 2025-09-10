@@ -118,37 +118,42 @@ const getWaybillDetail = async (req, res) => {
       });
     }
     
-    // 为每个运输明细更新设备的最新位置信息
-    for (const detail of waybill.transportDetails) {
-      if (detail.device) {
-        // 从gps_devices表获取设备的最新位置信息
-        const latestDevice = await Device.findByPk(detail.device.id);
-        if (latestDevice) {
-          // 更新设备信息为最新数据
-          detail.device.last_longitude = latestDevice.last_longitude;
-          detail.device.last_latitude = latestDevice.last_latitude;
-          detail.device.last_update_time = latestDevice.last_update_time;
-          detail.device.status = latestDevice.status;
-          detail.device.battery_level = latestDevice.battery_level;
-          
-          // 获取最新位置的地址信息
-          if (latestDevice.last_longitude && latestDevice.last_latitude) {
-            const latestLocation = await Location.findOne({
-              where: {
-                device_id: detail.device.id,
-                longitude: latestDevice.last_longitude,
-                latitude: latestDevice.last_latitude
-              },
-              order: [['created_at', 'DESC']]
-            });
+    // 批量获取所有设备的最新信息，避免N+1查询问题
+    const deviceIds = waybill.transportDetails
+      .filter(detail => detail.device)
+      .map(detail => detail.device.id);
+    
+    if (deviceIds.length > 0) {
+      // 批量查询所有设备的最新信息
+      const latestDevices = await Device.findAll({
+        where: { id: deviceIds },
+        attributes: [
+          'id', 'last_longitude', 'last_latitude', 'last_update_time', 
+          'status', 'battery_level', 'last_address'
+        ]
+      });
+      
+      // 创建设备信息映射表
+      const deviceMap = new Map();
+      latestDevices.forEach(device => {
+        deviceMap.set(device.id, device);
+      });
+      
+      // 更新运输明细的设备信息
+      for (const detail of waybill.transportDetails) {
+        if (detail.device) {
+          const latestDevice = deviceMap.get(detail.device.id);
+          if (latestDevice) {
+            // 更新设备信息为最新数据
+            detail.device.last_longitude = latestDevice.last_longitude;
+            detail.device.last_latitude = latestDevice.last_latitude;
+            detail.device.last_update_time = latestDevice.last_update_time;
+            detail.device.status = latestDevice.status;
+            detail.device.battery_level = latestDevice.battery_level;
             
-            if (latestLocation && latestLocation.address) {
-              detail.address = latestLocation.address;
-            } else {
-              detail.address = '地址解析中...';
-            }
-          } else {
-            detail.address = '暂无位置信息';
+            // 同步更新运输明细的更新时间和地址
+            detail.last_update_time = latestDevice.last_update_time;
+            detail.address = latestDevice.last_address || '暂无地址信息';
           }
         }
       }
@@ -469,37 +474,42 @@ const getPublicWaybillDetail = async (req, res) => {
       });
     }
     
-    // 为每个运输明细更新设备的最新位置信息
-    for (const detail of waybill.transportDetails) {
-      if (detail.device) {
-        // 从gps_devices表获取设备的最新位置信息
-        const latestDevice = await Device.findByPk(detail.device.id);
-        if (latestDevice) {
-          // 更新设备信息为最新数据
-          detail.device.last_longitude = latestDevice.last_longitude;
-          detail.device.last_latitude = latestDevice.last_latitude;
-          detail.device.last_update_time = latestDevice.last_update_time;
-          detail.device.status = latestDevice.status;
-          detail.device.battery_level = latestDevice.battery_level;
-          
-          // 获取最新位置的地址信息
-          if (latestDevice.last_longitude && latestDevice.last_latitude) {
-            const latestLocation = await Location.findOne({
-              where: {
-                device_id: detail.device.id,
-                longitude: latestDevice.last_longitude,
-                latitude: latestDevice.last_latitude
-              },
-              order: [['created_at', 'DESC']]
-            });
+    // 批量获取所有设备的最新信息，避免N+1查询问题
+    const deviceIds = waybill.transportDetails
+      .filter(detail => detail.device)
+      .map(detail => detail.device.id);
+    
+    if (deviceIds.length > 0) {
+      // 批量查询所有设备的最新信息
+      const latestDevices = await Device.findAll({
+        where: { id: deviceIds },
+        attributes: [
+          'id', 'last_longitude', 'last_latitude', 'last_update_time', 
+          'status', 'battery_level', 'last_address'
+        ]
+      });
+      
+      // 创建设备信息映射表
+      const deviceMap = new Map();
+      latestDevices.forEach(device => {
+        deviceMap.set(device.id, device);
+      });
+      
+      // 更新运输明细的设备信息
+      for (const detail of waybill.transportDetails) {
+        if (detail.device) {
+          const latestDevice = deviceMap.get(detail.device.id);
+          if (latestDevice) {
+            // 更新设备信息为最新数据
+            detail.device.last_longitude = latestDevice.last_longitude;
+            detail.device.last_latitude = latestDevice.last_latitude;
+            detail.device.last_update_time = latestDevice.last_update_time;
+            detail.device.status = latestDevice.status;
+            detail.device.battery_level = latestDevice.battery_level;
             
-            if (latestLocation && latestLocation.address) {
-              detail.address = latestLocation.address;
-            } else {
-              detail.address = '地址解析中...';
-            }
-          } else {
-            detail.address = '暂无位置信息';
+            // 同步更新运输明细的更新时间和地址
+            detail.last_update_time = latestDevice.last_update_time;
+            detail.address = latestDevice.last_address || '暂无地址信息';
           }
         }
       }
@@ -555,37 +565,42 @@ const verifyWaybillPassword = async (req, res) => {
       });
     }
     
-    // 为每个运输明细更新设备的最新位置信息
-    for (const detail of waybill.transportDetails) {
-      if (detail.device) {
-        // 从gps_devices表获取设备的最新位置信息
-        const latestDevice = await Device.findByPk(detail.device.id);
-        if (latestDevice) {
-          // 更新设备信息为最新数据
-          detail.device.last_longitude = latestDevice.last_longitude;
-          detail.device.last_latitude = latestDevice.last_latitude;
-          detail.device.last_update_time = latestDevice.last_update_time;
-          detail.device.status = latestDevice.status;
-          detail.device.battery_level = latestDevice.battery_level;
-          
-          // 获取最新位置的地址信息
-          if (latestDevice.last_longitude && latestDevice.last_latitude) {
-            const latestLocation = await Location.findOne({
-              where: {
-                device_id: detail.device.id,
-                longitude: latestDevice.last_longitude,
-                latitude: latestDevice.last_latitude
-              },
-              order: [['created_at', 'DESC']]
-            });
+    // 批量获取所有设备的最新信息，避免N+1查询问题
+    const deviceIds = waybill.transportDetails
+      .filter(detail => detail.device)
+      .map(detail => detail.device.id);
+    
+    if (deviceIds.length > 0) {
+      // 批量查询所有设备的最新信息
+      const latestDevices = await Device.findAll({
+        where: { id: deviceIds },
+        attributes: [
+          'id', 'last_longitude', 'last_latitude', 'last_update_time', 
+          'status', 'battery_level', 'last_address'
+        ]
+      });
+      
+      // 创建设备信息映射表
+      const deviceMap = new Map();
+      latestDevices.forEach(device => {
+        deviceMap.set(device.id, device);
+      });
+      
+      // 更新运输明细的设备信息
+      for (const detail of waybill.transportDetails) {
+        if (detail.device) {
+          const latestDevice = deviceMap.get(detail.device.id);
+          if (latestDevice) {
+            // 更新设备信息为最新数据
+            detail.device.last_longitude = latestDevice.last_longitude;
+            detail.device.last_latitude = latestDevice.last_latitude;
+            detail.device.last_update_time = latestDevice.last_update_time;
+            detail.device.status = latestDevice.status;
+            detail.device.battery_level = latestDevice.battery_level;
             
-            if (latestLocation && latestLocation.address) {
-              detail.address = latestLocation.address;
-            } else {
-              detail.address = '地址解析中...';
-            }
-          } else {
-            detail.address = '暂无位置信息';
+            // 同步更新运输明细的更新时间和地址
+            detail.last_update_time = latestDevice.last_update_time;
+            detail.address = latestDevice.last_address || '暂无地址信息';
           }
         }
       }
