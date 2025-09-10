@@ -39,7 +39,11 @@
     <div class="main-area">
       <!-- 顶部工具栏 -->
       <header class="top-toolbar">
-        <div class="toolbar-spacer"></div>
+        <!-- 页面标题 -->
+        <div class="page-title-section">
+          <h1 class="page-title">{{ currentPageTitle }}</h1>
+        </div>
+        
         <div class="toolbar-right">
           <!-- 用户信息 -->
           <el-dropdown class="user-dropdown" @command="handleUserCommand">
@@ -68,8 +72,8 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/store/user'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import logoUrl from '@/assets/logo.png'
@@ -79,8 +83,30 @@ import {
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
 const sidebarCollapsed = ref(false)
+
+// 计算当前页面标题
+const currentPageTitle = computed(() => {
+  const routeName = route.name
+  switch (routeName) {
+    case 'MemberDashboard':
+      return '仪表盘'
+    case 'MemberDeviceList':
+      return '设备列表'
+    case 'MemberWaybillList':
+      return '运单列表'
+    case 'MemberProfile':
+      return '个人信息'
+    case 'MemberPassword':
+      return '修改密码'
+    case 'MemberLoginHistory':
+      return '登录历史'
+    default:
+      return '会员中心'
+  }
+})
 
 // 切换侧边栏收起状态
 const toggleSidebar = () => {
@@ -270,8 +296,21 @@ const handleUserCommand = async (command) => {
   min-height: 60px;
 }
 
-.toolbar-spacer {
-  flex: 1;
+/* 页面标题区域 */
+.page-title-section {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.page-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: #303133;
+  margin: 0;
+  line-height: 1.2;
+  border-bottom: 3px solid #409eff;
+  padding-bottom: 4px;
 }
 
 .toolbar-right {

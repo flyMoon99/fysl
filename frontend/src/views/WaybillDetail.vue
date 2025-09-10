@@ -276,7 +276,7 @@ const verifyPassword = async () => {
       transportDetails.value = response.data.data.transportDetails || []
       showPasswordDialog.value = false
       inputPassword.value = ''
-      ElMessage.success('密码验证成功')
+      // 后端已经返回了成功消息，不需要手动添加
     } else {
       ElMessage.error(response.data?.message || '密码验证失败')
     }
@@ -465,10 +465,25 @@ const loadWaybillDetail = async () => {
       console.log('运单详情API响应:', response.data)
     } catch (apiError) {
       console.error('运单详情API调用失败:', apiError)
-      // 如果是403错误且需要密码验证
-      if (apiError.response?.status === 403 && apiError.response?.data?.requiresPassword) {
-        showPasswordDialog.value = true
-        return
+      // 如果是403错误，检查用户登录状态
+      if (apiError.response?.status === 403) {
+        // 如果用户已登录，尝试用会员API获取运单详情
+        if (userStore.isLoggedIn) {
+          try {
+            console.log('用户已登录，尝试用会员API获取运单详情')
+            response = await memberAPI.getWaybillDetail(waybillId)
+            console.log('会员API运单详情响应:', response.data)
+          } catch (memberApiError) {
+            console.error('会员API调用失败:', memberApiError)
+            // 如果会员API也失败，说明不是用户自己的运单，需要密码验证
+            showPasswordDialog.value = true
+            return
+          }
+        } else {
+          // 用户未登录，需要密码验证
+          showPasswordDialog.value = true
+          return
+        }
       }
       // 如果API不存在或网络错误，使用模拟数据进行演示
       else if (apiError.response?.status === 404 || apiError.code === 'ECONNREFUSED' || !apiError.response) {
@@ -511,21 +526,31 @@ const loadWaybillDetail = async () => {
       console.log('处理后的运单数据:', waybillInfo)
       console.log('处理后的运输明细:', transportDetailsData)
       
-      // 检查访问权限
+      // 检查访问权限：如果用户已登录且是自己的运单，则直接显示；否则检查密码
       if (!userStore.isLoggedIn && waybillInfo.waybill_password) {
+        // 用户未登录且运单有密码，需要验证密码
         showPasswordDialog.value = true
+      } else if (userStore.isLoggedIn) {
+        // 用户已登录，检查是否是自己的运单
+        const currentUser = userStore.user
+        if (currentUser && waybillInfo.create_by && currentUser.username !== waybillInfo.create_by && waybillInfo.waybill_password) {
+          // 不是自己的运单且有密码，需要验证密码
+          showPasswordDialog.value = true
+        }
+        // 否则直接显示运单详情（是自己的运单或没有密码）
       }
     } else {
       throw new Error(response.data.message || '获取运单详情失败')
     }
   } catch (err) {
     console.error('加载运单详情失败:', err)
-    error.value = err.message || '加载运单详情失败'
     
-    // 如果是权限问题，显示密码输入框
+    // 如果是权限问题，显示密码输入框，不设置错误状态
     if (err.response?.status === 403) {
       showPasswordDialog.value = true
       error.value = ''
+    } else {
+      error.value = err.message || '加载运单详情失败'
     }
   } finally {
     loading.value = false

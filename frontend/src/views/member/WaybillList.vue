@@ -1,7 +1,5 @@
 <template>
   <div class="waybill-list">
-    <h1 class="page-title">运单列表</h1>
-    
     <!-- 搜索栏 -->
     <div class="search-bar">
       <el-form :inline="true" :model="searchForm" class="search-form">

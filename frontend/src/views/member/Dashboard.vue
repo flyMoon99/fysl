@@ -1,7 +1,5 @@
 <template>
   <div class="dashboard">
-    <h1 class="page-title">仪表盘</h1>
-    
     <!-- 统计卡片 -->
     <div class="stats-grid">
       

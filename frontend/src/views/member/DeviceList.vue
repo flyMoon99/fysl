@@ -1,7 +1,5 @@
 <template>
   <div class="device-list">
-    <h1 class="page-title">设备列表</h1>
-    
     <!-- 搜索栏 -->
     <div class="search-bar">
       <el-form :inline="true" :model="searchForm" class="search-form">
@@ -211,15 +209,6 @@
 
             <!-- 轨迹点列表 -->
             <div class="track-points-list">
-              <!-- 调试信息 -->
-              <div v-if="trackPoints.length === 0" class="debug-info">
-                <p>调试信息：</p>
-                <p>轨迹点数量: {{ trackPoints.length }}</p>
-                <p>过滤后轨迹点数量: {{ filteredTrackPoints.length }}</p>
-                <p>时间范围: {{ trackDateRange }}</p>
-                <p>当前设备: {{ currentDevice?.device_number }} (ID: {{ currentDevice?.id }})</p>
-                <p>时间跨度: {{ getTimeRangeDays() }} 天</p>
-              </div>
               
               <el-table
                 :data="filteredTrackPoints"
@@ -469,6 +458,11 @@ const showDeviceTrack = (device) => {
   trackPointsTotal.value = 0
   trackPointsPage.value = 1
   
+  // 清空地图上的轨迹数据
+  if (trackMapRef.value) {
+    trackMapRef.value.clearTrack()
+  }
+  
   // 设置默认时间范围为最近7天
   const end = new Date()
   const start = new Date()
@@ -715,6 +709,11 @@ const generateStopPoints = (trackData) => {
     trackPoints.value = []
     filteredTrackPoints.value = []
     trackPointsTotal.value = 0
+    
+    // 确保地图也被清空
+    if (trackMapRef.value) {
+      trackMapRef.value.clearTrack()
+    }
     return
   }
 
@@ -905,19 +904,6 @@ onMounted(() => {
   flex: 1;
 }
 
-.debug-info {
-  background: #f0f9ff;
-  border: 1px solid #b3d8ff;
-  border-radius: 4px;
-  padding: 10px;
-  margin-bottom: 10px;
-  font-size: 12px;
-  color: #409eff;
-}
-
-.debug-info p {
-  margin: 2px 0;
-}
 
 /* 响应式设计 */
 @media (max-width: 1200px) {

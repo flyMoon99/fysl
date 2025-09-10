@@ -65,7 +65,11 @@ api.interceptors.response.use(
           }
           break
         case 403:
-          ElMessage.error('权限不足')
+          // 检查是否是运单详情相关的403错误，如果是则不显示通用错误提示
+          const isWaybillDetailEndpoint = config.url && config.url.includes('/public/waybills/')
+          if (!isWaybillDetailEndpoint) {
+            ElMessage.error('权限不足')
+          }
           break
         case 404:
           // 检查是否是设备查询相关的404错误，如果是则不显示通用错误提示
