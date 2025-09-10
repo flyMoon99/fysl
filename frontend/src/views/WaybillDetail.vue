@@ -128,7 +128,10 @@
                       format="YYYY-MM-DD HH:mm:ss"
                       value-format="YYYY-MM-DD HH:mm:ss"
                       size="small"
+                      :clearable="true"
+                      :editable="false"
                       @change="handleTrackTimeRangeChange"
+                      @clear="handleTrackTimeRangeClear"
                     />
                     <el-button 
                       type="primary" 
@@ -294,12 +297,19 @@ const verifyPassword = async () => {
 
 // 选择运输明细
 const selectTransportDetail = (index) => {
-  selectedDetailIndex.value = index
-  mapKey.value++ // 强制重新渲染地图
-  
-  // 确保时间范围已初始化，如果还没有则初始化
-  if (!trackTimeRange.value || trackTimeRange.value.length === 0) {
-    initializeDefaultTimeRange()
+  try {
+    selectedDetailIndex.value = index
+    mapKey.value++ // 强制重新渲染地图
+    
+    // 确保时间范围已初始化，如果还没有则初始化
+    if (!trackTimeRange.value || trackTimeRange.value.length === 0) {
+      initializeDefaultTimeRange()
+    }
+    
+    console.log('选择运输明细:', index, '时间范围:', trackTimeRange.value)
+  } catch (error) {
+    console.error('选择运输明细时出错:', error)
+    ElMessage.error('选择设备失败，请重试')
   }
 }
 
@@ -317,7 +327,50 @@ const refreshMap = () => {
 // 处理轨迹时间范围变化
 const handleTrackTimeRangeChange = (value) => {
   console.log('轨迹时间范围变化:', value)
-  trackTimeRange.value = value
+  try {
+    // 验证时间范围的有效性
+    if (value && Array.isArray(value) && value.length === 2) {
+      const [startTime, endTime] = value
+      if (startTime && endTime) {
+        const start = new Date(startTime)
+        const end = new Date(endTime)
+        
+        // 检查时间范围是否有效
+        if (start.getTime() > end.getTime()) {
+          ElMessage.warning('开始时间不能晚于结束时间')
+          return
+        }
+        
+        // 检查时间跨度是否超过7天
+        const timeDiff = end.getTime() - start.getTime()
+        const maxDays = 7 * 24 * 60 * 60 * 1000 // 7天的毫秒数
+        if (timeDiff > maxDays) {
+          ElMessage.warning('查询时间跨度不能超过7天')
+          return
+        }
+        
+        trackTimeRange.value = value
+        console.log('时间范围设置成功:', value)
+      } else {
+        console.warn('时间范围数据不完整:', value)
+      }
+    } else if (value === null || value === undefined) {
+      // 清空时间范围
+      trackTimeRange.value = []
+      console.log('时间范围已清空')
+    } else {
+      console.warn('无效的时间范围格式:', value)
+    }
+  } catch (error) {
+    console.error('处理时间范围变化时出错:', error)
+    ElMessage.error('时间范围设置失败，请重新选择')
+  }
+}
+
+// 处理时间范围清空
+const handleTrackTimeRangeClear = () => {
+  console.log('时间范围已清空')
+  trackTimeRange.value = []
 }
 
 // 查询轨迹数据
@@ -617,39 +670,60 @@ const createMockResponse = (waybillId) => {
 
 // 初始化默认时间范围（最近7天）
 const initializeDefaultTimeRange = () => {
-  const now = new Date()
-  const start = new Date()
-  start.setTime(start.getTime() - 3600 * 1000 * 24 * 7) // 7天前
-  
-  // 设置开始时间为7天前的00:00:00
-  start.setHours(0, 0, 0, 0)
-  
-  // 设置结束时间为当前时间
-  now.setHours(23, 59, 59, 999)
-  
-  trackTimeRange.value = [
-    start.getFullYear() + '-' + 
-    String(start.getMonth() + 1).padStart(2, '0') + '-' + 
-    String(start.getDate()).padStart(2, '0') + ' ' +
-    String(start.getHours()).padStart(2, '0') + ':' +
-    String(start.getMinutes()).padStart(2, '0') + ':' +
-    String(start.getSeconds()).padStart(2, '0'),
+  try {
+    const now = new Date()
+    const start = new Date()
     
-    now.getFullYear() + '-' + 
-    String(now.getMonth() + 1).padStart(2, '0') + '-' + 
-    String(now.getDate()).padStart(2, '0') + ' ' +
-    String(now.getHours()).padStart(2, '0') + ':' +
-    String(now.getMinutes()).padStart(2, '0') + ':' +
-    String(now.getSeconds()).padStart(2, '0')
-  ]
-  
-  console.log('初始化默认时间范围（最近7天）:', trackTimeRange.value)
+    // 计算6天前的时间（精确到毫秒），这样从00:00:00到23:59:59正好是7天
+    const sixDaysAgo = now.getTime() - (6 * 24 * 60 * 60 * 1000)
+    start.setTime(sixDaysAgo)
+    
+    // 设置开始时间为6天前的00:00:00
+    start.setHours(0, 0, 0, 0)
+    
+    // 设置结束时间为当前时间
+    now.setHours(23, 59, 59, 999)
+    
+    // 使用更安全的时间格式化方法
+    const formatDateTime = (date) => {
+      const year = date.getFullYear()
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      const hours = String(date.getHours()).padStart(2, '0')
+      const minutes = String(date.getMinutes()).padStart(2, '0')
+      const seconds = String(date.getSeconds()).padStart(2, '0')
+      return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+    }
+    
+    const startTimeStr = formatDateTime(start)
+    const endTimeStr = formatDateTime(now)
+    
+    trackTimeRange.value = [startTimeStr, endTimeStr]
+    
+    console.log('初始化默认时间范围（最近7天）:', trackTimeRange.value)
+    
+    // 验证时间跨度是否正确
+    const timeDiff = now.getTime() - start.getTime()
+    const daysDiff = timeDiff / (24 * 60 * 60 * 1000)
+    console.log(`时间跨度: ${daysDiff.toFixed(2)} 天`)
+    
+  } catch (error) {
+    console.error('初始化默认时间范围失败:', error)
+    // 如果初始化失败，设置为空数组
+    trackTimeRange.value = []
+  }
 }
 
 // 页面加载时获取运单详情
 onMounted(() => {
-  initializeDefaultTimeRange()
-  loadWaybillDetail()
+  try {
+    // 确保时间范围在页面加载时正确初始化
+    initializeDefaultTimeRange()
+    loadWaybillDetail()
+  } catch (error) {
+    console.error('页面初始化失败:', error)
+    ElMessage.error('页面初始化失败，请刷新重试')
+  }
 })
 </script>
 
